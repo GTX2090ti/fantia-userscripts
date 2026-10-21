@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Fantia 商品搜索增强 · 商品 ID 快取
 // @namespace    fantia.jp
-// @version      1.3.1
-// @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史，页首筛选框可按 ID 或标题实时过滤卡片；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下自动重排为多列网格（全页型通用）；适配手机触屏（小屏抽屉面板、加大点按目标）；界面采用 BewlyCat 风格的毛玻璃浮层。
+// @version      1.4.0
+// @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史，页首筛选框可按 ID 或标题实时过滤卡片；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下自动重排为多列网格（全页型通用）；适配手机触屏（小屏抽屉面板、加大点按目标）；面板内开关可一键切换整站黑暗模式（记忆偏好）；界面采用 BewlyCat 风格的毛玻璃浮层。
 // @author       小蓝
 // @match        https://fantia.jp/fanclubs*
 // @match        https://fantia.jp/products*
@@ -38,6 +38,10 @@
  * 4. 无限滚动：分页里存在「下一页」时，滚动近底部（提前 1000px 预载）
  *    自动抓取下一页 HTML、抽取商品网格追加到当前页并接龙后续分页；
  *    加载失败或没有更多页时自动停用，原分页链接保留可手动跳页。
+ * 5. 页面黑暗模式：面板内开关一键给整个 Fantia 页面刷上暗色主题
+ *    （顶栏、卡片、表单、分页、页脚全覆盖，图片不受影响），偏好写入
+ *    localStorage 跨页面记忆；开启后 color-scheme 同步为 dark，
+ *    脚本自身的毛玻璃 UI 会自动跟随切到暗色。
  *
  * 适配策略（为什么不依赖固定 class）
  * --------------------------------
@@ -102,6 +106,7 @@
   var ICON_X = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>';
   var ICON_TRASH = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
   var ICON_HISTORY = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>';
+  var ICON_MOON = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>';
 
   // 设计变量放在页面根上，通过继承进入 Shadow DOM；Dark Reader 的
   // body :not(iframe) 强刷规则无法穿透 Shadow 边界。
@@ -151,6 +156,58 @@
     '--fid-shadow-2:0 10px 15px -3px rgba(0,0,0,.26),0 4px 6px -4px rgba(0,0,0,.18);',
     '--fid-edge-glow:inset 1px 1px 1px -0.5px rgba(255,255,255,.06),inset -1px -1px 1px -0.5px rgba(255,255,255,.03);',
     '}',
+    // 站点级黑暗模式：html.fid-site-dark 由面板开关控制，给整个 Fantia
+    // 页面刷暗色。走 Bootstrap 通用结构 + 常见容器选择器，!important 压过
+    // 站点原生浅色；图片不加滤镜，照片观感不变。
+    'html.fid-site-dark{color-scheme:dark;}',
+    'html.fid-site-dark body{background:#141519!important;color:#e6e7eb!important;}',
+    'html.fid-site-dark #wrap,html.fid-site-dark #main{background:transparent!important;}',
+    'html.fid-site-dark h1,html.fid-site-dark h2,html.fid-site-dark h3,html.fid-site-dark h4,',
+    'html.fid-site-dark h5,html.fid-site-dark h6,html.fid-site-dark p,html.fid-site-dark li,',
+    'html.fid-site-dark label,html.fid-site-dark dd,html.fid-site-dark dt{color:#e6e7eb!important;}',
+    'html.fid-site-dark a{color:#5ec2f2!important;}',
+    'html.fid-site-dark a:hover,html.fid-site-dark a:focus{color:#8fd6f7!important;}',
+    'html.fid-site-dark .text-muted,html.fid-site-dark .help-block,html.fid-site-dark small{',
+    'color:#9aa0ac!important;}',
+    'html.fid-site-dark header,html.fid-site-dark .navbar,html.fid-site-dark .navbar-default,',
+    'html.fid-site-dark .navbar-inverse,html.fid-site-dark .navbar-static-top,',
+    'html.fid-site-dark .navbar-fixed-top{background:#1d1f26!important;border-color:#2a2d36!important;',
+    'box-shadow:none!important;}',
+    'html.fid-site-dark .navbar-brand,html.fid-site-dark .navbar .nav>li>a{color:#c9ccd4!important;}',
+    'html.fid-site-dark .navbar .nav>li>a:hover,html.fid-site-dark .navbar .nav>li>a:focus{',
+    'color:#fff!important;background:#2a2d36!important;}',
+    'html.fid-site-dark .navbar-toggle{border-color:#3a3e4a!important;}',
+    'html.fid-site-dark .navbar-toggle .icon-bar{background:#c9ccd4!important;}',
+    'html.fid-site-dark .card,html.fid-site-dark .panel,html.fid-site-dark .well,',
+    'html.fid-site-dark .thumbnail{background:#1d1f26!important;border-color:#2a2d36!important;',
+    'color:#e6e7eb!important;box-shadow:none!important;}',
+    'html.fid-site-dark .card .card-body,html.fid-site-dark .panel-body,',
+    'html.fid-site-dark .panel-heading,html.fid-site-dark .panel-footer{',
+    'background:transparent!important;color:#e6e7eb!important;border-color:#2a2d36!important;}',
+    'html.fid-site-dark input:not([type=checkbox]):not([type=radio]),html.fid-site-dark select,',
+    'html.fid-site-dark textarea,html.fid-site-dark .form-control{background:#22242c!important;',
+    'border-color:#33363f!important;color:#e6e7eb!important;}',
+    'html.fid-site-dark input::placeholder,html.fid-site-dark textarea::placeholder{color:#767b87!important;}',
+    'html.fid-site-dark .btn-default,html.fid-site-dark .btn-outline-default,',
+    'html.fid-site-dark .btn-link{background:#22242c!important;border-color:#33363f!important;',
+    'color:#e6e7eb!important;}',
+    'html.fid-site-dark .btn-primary{background:hsl(195 100% 32%)!important;border-color:hsl(195 100% 32%)!important;}',
+    'html.fid-site-dark .pagination>li>a,html.fid-site-dark .pagination>li>span{',
+    'background:#1d1f26!important;border-color:#2a2d36!important;color:#c9ccd4!important;}',
+    'html.fid-site-dark .pagination>.active>a,html.fid-site-dark .pagination>.active>span,',
+    'html.fid-site-dark .pagination>.active>a:hover{background:hsl(195 100% 32%)!important;',
+    'border-color:hsl(195 100% 32%)!important;color:#fff!important;}',
+    'html.fid-site-dark .dropdown-menu{background:#1d1f26!important;border-color:#2a2d36!important;}',
+    'html.fid-site-dark .dropdown-menu>li>a{color:#c9ccd4!important;}',
+    'html.fid-site-dark .dropdown-menu>li>a:hover{background:#2a2d36!important;color:#fff!important;}',
+    'html.fid-site-dark table,html.fid-site-dark .table>tbody>tr>td,',
+    'html.fid-site-dark .table>tbody>tr>th,html.fid-site-dark .table>thead>tr>td,',
+    'html.fid-site-dark .table>thead>tr>th{background:transparent!important;color:#e6e7eb!important;',
+    'border-color:#2a2d36!important;}',
+    'html.fid-site-dark .modal-content{background:#1d1f26!important;color:#e6e7eb!important;}',
+    'html.fid-site-dark footer,html.fid-site-dark .footer{background:#141519!important;',
+    'border-color:#2a2d36!important;color:#9aa0ac!important;}',
+    'html.fid-site-dark footer a{color:#9aa0ac!important;}',
     // 宿主只负责占位与层级，视觉全部在 Shadow DOM 内完成
     '.fantia-id-bar{position:relative;z-index:2;display:block;box-sizing:border-box;',
     'width:calc(100% - 16px);min-width:0;margin:8px;padding:0;border:0;border-radius:10px;',
@@ -304,6 +361,20 @@
     '.copy-all:active{transform:scale(.98);}',
     '.copy-all:focus-visible{outline:2px solid var(--fid-theme-20);outline-offset:2px;}',
     '.copy-all svg{width:15px;height:15px;display:block;}',
+    // 黑暗模式开关行：左侧月亮+文案，右侧 iOS 风拨杆
+    '.dark-row{display:flex;align-items:center;gap:6px;color:var(--fid-text-2);',
+    'font-size:12px;line-height:20px;}',
+    '.dark-row svg{width:13px;height:13px;display:block;flex:none;color:var(--fid-text-3);}',
+    '.dark-switch{margin-left:auto;position:relative;flex:none;width:34px;height:20px;padding:0;',
+    'border:0;border-radius:999px;background:var(--fid-fill-2);cursor:pointer;appearance:none;',
+    '-webkit-appearance:none;transition:background-color .15s var(--fid-ease);}',
+    '.dark-switch::after{content:\'\';position:absolute;top:2px;left:2px;width:16px;height:16px;',
+    'border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);',
+    'transition:transform .15s var(--fid-ease);}',
+    '.dark-switch.on{background:var(--fid-theme);}',
+    '.dark-switch.on::after{transform:translateX(14px);}',
+    '.dark-switch:focus-visible{outline:2px solid var(--fid-theme-20);outline-offset:2px;}',
+    '@media (prefers-reduced-motion:reduce){.dark-switch,.dark-switch::after{transition:none;}}',
     '.hist-head{display:flex;align-items:center;justify-content:space-between;color:var(--fid-text-3);',
     'font-size:11px;line-height:16px;letter-spacing:.4px;}',
     '.hist-clear{display:none;align-items:center;gap:4px;padding:0;border:0;background:transparent;',
@@ -844,6 +915,35 @@
   var panelHistHead = null;
   var panelHistList = null;
   var panelHistClear = null;
+  var panelDarkSwitch = null;
+
+  // --------------------------------------------------------------------- //
+  // 页面黑暗模式：html.fid-site-dark 开关，偏好 localStorage 记忆
+  // --------------------------------------------------------------------- //
+  var SITE_DARK_KEY = 'fantia-id-sitedark';
+  var siteDark = null;   // 惰性读取；null 表示尚未从 localStorage 加载
+
+  function loadSiteDark() {
+    if (siteDark === null) {
+      try { siteDark = localStorage.getItem(SITE_DARK_KEY) === '1'; }
+      catch (e) { siteDark = false; }   // 隐私模式等场景下默认浅色
+    }
+    return siteDark;
+  }
+
+  function applySiteDark() {
+    try {
+      document.documentElement.classList.toggle('fid-site-dark', loadSiteDark());
+    } catch (e) { /* 不阻断主流程 */ }
+    if (panelDarkSwitch) panelDarkSwitch.classList.toggle('on', loadSiteDark());
+  }
+
+  function toggleSiteDark() {
+    siteDark = !loadSiteDark();
+    try { localStorage.setItem(SITE_DARK_KEY, siteDark ? '1' : '0'); } catch (e) { /* 静默 */ }
+    applySiteDark();
+    syncTheme();   // color-scheme 变了，脚本自身 UI 立即跟随明暗
+  }
 
   function copyAllVisible() {
     var ids = uniqueIds(!!filterQuery);
@@ -885,6 +985,21 @@
       copyAllVisible();
     });
 
+    var darkRow = document.createElement('div');
+    darkRow.className = 'dark-row';
+    darkRow.innerHTML = ICON_MOON + '<span>页面黑暗模式</span>';
+    panelDarkSwitch = document.createElement('button');
+    panelDarkSwitch.type = 'button';
+    panelDarkSwitch.className = 'dark-switch';
+    panelDarkSwitch.setAttribute('role', 'switch');
+    panelDarkSwitch.setAttribute('aria-label', '切换页面黑暗模式');
+    panelDarkSwitch.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      toggleSiteDark();
+    });
+    darkRow.appendChild(panelDarkSwitch);
+
     panelHistHead = document.createElement('div');
     panelHistHead.className = 'hist-head';
     panelHistHead.innerHTML = '<span>最近复制</span>';
@@ -908,11 +1023,13 @@
 
     panel.appendChild(title);
     panel.appendChild(panelCopyAllBtn);
+    panel.appendChild(darkRow);
     panel.appendChild(panelHistHead);
     panel.appendChild(panelHistList);
     panel.appendChild(foot);
     root.appendChild(panel);
     document.body.appendChild(panelHost);
+    applySiteDark();   // 面板建好即同步开关状态与站点明暗
 
     // 点击面板外部关闭（面板/FAB 自身的点击已 stopPropagation）
     document.addEventListener('click', function (ev) {
@@ -1323,6 +1440,7 @@
   // 启动：首扫 + 轮询兜底 + MutationObserver + SPA 跳转
   // --------------------------------------------------------------------- //
   function boot() {
+    applySiteDark();   // 先于首扫恢复黑暗模式，避免页面加载闪白
     syncTheme();
     syncPageMode();
     watchTheme();
