@@ -13,13 +13,18 @@ http://192.168.2.210:3100/akinxkk/fantia-userscripts/raw/branch/main/fantia-prod
 
 ## 脚本清单
 
-### `fantia-product-search-enhancer.user.js` · Fantia 商品搜索增强（v1.0.0）
+### `fantia-product-search-enhancer.user.js` · Fantia 商品搜索增强（v1.3.0）
 
-- 商品搜索/列表页：每张商品卡片的图片与介绍下方注入 `商品 ID <数字>` + 「复制」按钮，一键复制链接尾部数字
-- 右下角悬浮按钮：徽标显示本页去重商品数，点击复制全部 ID（换行分隔，可直接喂 FantiaProducts 刮削器）
+- 商品搜索/列表页：每张商品卡片的图片与介绍下方注入 `商品 ID <数字>` + 「复制」按钮，一键复制链接尾部数字；复制过的卡片持久标记「已复制」，悬停按钮可恢复「复制」便于重拷
+- 页首筛选框：按商品 ID 或标题关键词实时过滤本页卡片（防抖 150ms，Esc 或 × 清空），显示命中数
+- 右下角悬浮按钮：徽标显示本页去重商品数（筛选生效时只计可见卡片），点击打开悬浮面板
+  - 「复制本页全部」：复制全部 ID（换行分隔，可直接喂 FantiaProducts 刮削器）
+  - 「最近复制」：复制历史跨页面持久化（localStorage，上限 500 条），点击条目再次复制，两段式确认一键清空
+- 宽屏（≥1200px）布局：容器撑满视口，运行时识别商品网格重排为 220px 起步的 auto-fill 多列，识别「侧栏 + 内容」结构定宽侧栏；不依赖具体页面 ID，社团商品页 / Market / 搜索 / 排行榜的网格型容器均适用；已移除 Bootstrap clearfix 伪元素，多列严格对齐
+- 无限滚动：有「下一页」时滚动近底部自动加载追加（提前 1000px 预载），跨页接龙；失败或到底自动停用，原分页仍可手动跳页
 - 不绑定固定 class，按 DOM 结构识别卡片；兼容整卡可点与「外层 div + 内链只包缩略图」两种布局
 - MutationObserver + 轮询兜底，覆盖分页/无限滚动/SPA 跳转；商品详情页与帖子页自动跳过
-- 剪贴板 clipboard API 失败时自动降级 execCommand
+- 剪贴板 clipboard API 失败时自动降级 execCommand；BewlyCat 风格毛玻璃 UI，自动适配暗色模式
 
 ## 自动更新
 
