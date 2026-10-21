@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Fantia 商品搜索增强 · 商品 ID 快取
 // @namespace    fantia.jp
-// @version      1.4.0
+// @version      1.4.1
 // @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史，页首筛选框可按 ID 或标题实时过滤卡片；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下自动重排为多列网格（全页型通用）；适配手机触屏（小屏抽屉面板、加大点按目标）；面板内开关可一键切换整站黑暗模式（记忆偏好）；界面采用 BewlyCat 风格的毛玻璃浮层。
 // @author       小蓝
 // @match        https://fantia.jp/fanclubs*
@@ -162,6 +162,21 @@
     'html.fid-site-dark{color-scheme:dark;}',
     'html.fid-site-dark body{background:#141519!important;color:#e6e7eb!important;}',
     'html.fid-site-dark #wrap,html.fid-site-dark #main{background:transparent!important;}',
+    // ---- 通用兜底层（必须位于组件规则之前）：把所有普通结构性容器刷成透明，
+    // 露出暗色 body。站点自定义的白底区块绝大多数是普通 div/section，这样
+    // 无需逐个枚举类名就能全站变暗；需要底色的组件（.card/.navbar/按钮等）
+    // 由后面的组件规则以更高优先级重新上色。
+    'html.fid-site-dark div,html.fid-site-dark section,html.fid-site-dark article,',
+    'html.fid-site-dark aside,html.fid-site-dark main,html.fid-site-dark form,',
+    'html.fid-site-dark figure,html.fid-site-dark fieldset,html.fid-site-dark blockquote,',
+    'html.fid-site-dark hr{background-color:transparent!important;border-color:#2a2d36!important;}',
+    'html.fid-site-dark ul,html.fid-site-dark ol,html.fid-site-dark dl,',
+    'html.fid-site-dark nav{background-color:transparent!important;}',
+    // 第二档：带 class 的 div/section（站点常用双类名白底区块）
+    'html.fid-site-dark div[class],html.fid-site-dark section[class],',
+    'html.fid-site-dark article[class],html.fid-site-dark aside[class],',
+    'html.fid-site-dark header[class],html.fid-site-dark footer[class]{',
+    'background-color:transparent!important;}',
     'html.fid-site-dark h1,html.fid-site-dark h2,html.fid-site-dark h3,html.fid-site-dark h4,',
     'html.fid-site-dark h5,html.fid-site-dark h6,html.fid-site-dark p,html.fid-site-dark li,',
     'html.fid-site-dark label,html.fid-site-dark dd,html.fid-site-dark dt{color:#e6e7eb!important;}',
@@ -208,6 +223,36 @@
     'html.fid-site-dark footer,html.fid-site-dark .footer{background:#141519!important;',
     'border-color:#2a2d36!important;color:#9aa0ac!important;}',
     'html.fid-site-dark footer a{color:#9aa0ac!important;}',
+    // ---- 实心组件重上色（位于兜底层之后，赢回透明）：alert/徽章/列表组/
+    // 面包屑/标签页等自带底色的组件不能透明，否则字叠字
+    'html.fid-site-dark .alert{background:hsl(195 30% 16%)!important;',
+    'border-color:hsl(195 30% 24%)!important;color:#c9ccd4!important;}',
+    'html.fid-site-dark .alert-danger,html.fid-site-dark .alert-error{',
+    'background:rgba(232,98,102,.18)!important;border-color:hsl(358 75% 45%)!important;color:#ffb3b6!important;}',
+    'html.fid-site-dark .alert-success{background:rgba(47,184,148,.18)!important;',
+    'border-color:hsl(164 60% 40%)!important;color:#9fe8d1!important;}',
+    'html.fid-site-dark .badge,html.fid-site-dark .label,html.fid-site-dark .tag{',
+    'background:#2a2d36!important;color:#c9ccd4!important;}',
+    'html.fid-site-dark .label-primary,html.fid-site-dark .badge-primary{',
+    'background:hsl(195 100% 32%)!important;color:#fff!important;}',
+    'html.fid-site-dark .list-group-item,html.fid-site-dark .media,',
+    'html.fid-site-dark .breadcrumb{background:#1d1f26!important;',
+    'border-color:#2a2d36!important;color:#e6e7eb!important;}',
+    'html.fid-site-dark .breadcrumb>li+li:before{color:#767b87!important;}',
+    'html.fid-site-dark .nav-tabs,html.fid-site-dark .nav-pills{border-color:#2a2d36!important;}',
+    'html.fid-site-dark .nav-tabs>li>a,html.fid-site-dark .nav-pills>li>a{',
+    'background:#1d1f26!important;color:#c9ccd4!important;border-color:#2a2d36!important;}',
+    'html.fid-site-dark .nav-tabs>li.active>a,html.fid-site-dark .nav-pills>li.active>a,',
+    'html.fid-site-dark .nav-tabs>li.active>a:hover,html.fid-site-dark .nav-pills>li.active>a:hover{',
+    'background:hsl(195 100% 32%)!important;color:#fff!important;}',
+    'html.fid-site-dark .btn-success{background:hsl(164 60% 36%)!important;',
+    'border-color:hsl(164 60% 36%)!important;color:#fff!important;}',
+    'html.fid-site-dark .btn-danger{background:hsl(358 65% 42%)!important;',
+    'border-color:hsl(358 65% 42%)!important;color:#fff!important;}',
+    'html.fid-site-dark .btn-warning{background:hsl(36 70% 40%)!important;',
+    'border-color:hsl(36 70% 40%)!important;color:#fff!important;}',
+    'html.fid-site-dark .btn-info{background:hsl(195 70% 34%)!important;',
+    'border-color:hsl(195 70% 34%)!important;color:#fff!important;}',
     // 宿主只负责占位与层级，视觉全部在 Shadow DOM 内完成
     '.fantia-id-bar{position:relative;z-index:2;display:block;box-sizing:border-box;',
     'width:calc(100% - 16px);min-width:0;margin:8px;padding:0;border:0;border-radius:10px;',
