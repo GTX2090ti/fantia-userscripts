@@ -8,7 +8,7 @@
 2. 打开安装地址，点「安装」：
 
 ```
-http://192.168.2.210:3100/akinxkk/fantia-userscripts/raw/branch/main/fantia-product-search-enhancer.user.js
+https://gitea.51370.xyz:7999/akinxkk/fantia-userscripts/raw/branch/main/fantia-product-search-enhancer.user.js
 ```
 
 ## 脚本清单
@@ -29,9 +29,9 @@ http://192.168.2.210:3100/akinxkk/fantia-userscripts/raw/branch/main/fantia-prod
 ## 自动更新
 
 脚本头部已配置 `@updateURL` / `@downloadURL` 指向本仓库 raw 地址，
-Tampermonkey 会按版本号自动检查更新（需内网或 WireGuard 可达 `192.168.2.210:3100`）。
+Tampermonkey 会按版本号自动检查更新（需可达 `gitea.51370.xyz:7999`，公网反代或内网均可）。
 
 ## 环境
 
-- Gitea：`http://192.168.2.210:3100`（NAS 192.168.2.210，容器 gitea）
-- 仅内网 / WireGuard 可达，公网请自行反代
+- Gitea：`https://gitea.51370.xyz:7999`（NAS 192.168.2.210 容器 gitea，公网 HTTPS 反代；内网 `http://192.168.2.210:3100`）
+- 公网 HTTPS 反代直达；内网也可走 `http://192.168.2.210:3100`
