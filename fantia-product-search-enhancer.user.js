@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Fantia 商品搜索增强 · 商品 ID 快取
 // @namespace    fantia.jp
-// @version      1.4.1
+// @version      1.4.2
 // @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史，页首筛选框可按 ID 或标题实时过滤卡片；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下自动重排为多列网格（全页型通用）；适配手机触屏（小屏抽屉面板、加大点按目标）；面板内开关可一键切换整站黑暗模式（记忆偏好）；界面采用 BewlyCat 风格的毛玻璃浮层。
 // @author       小蓝
 // @match        https://fantia.jp/fanclubs*
@@ -172,6 +172,14 @@
     'html.fid-site-dark hr{background-color:transparent!important;border-color:#2a2d36!important;}',
     'html.fid-site-dark ul,html.fid-site-dark ol,html.fid-site-dark dl,',
     'html.fid-site-dark nav{background-color:transparent!important;}',
+    // 渐变背景也是漏白重灾区：区块级结构标签上的 background-image（渐变横幅/
+    // 装饰带）直接抹掉；div 不动，避免误杀用背景图实现的卡片缩略图
+    'html.fid-site-dark section,html.fid-site-dark article,html.fid-site-dark aside,',
+    'html.fid-site-dark main,html.fid-site-dark header,html.fid-site-dark footer,',
+    'html.fid-site-dark figure,html.fid-site-dark nav,',
+    'html.fid-site-dark section[class],html.fid-site-dark article[class],',
+    'html.fid-site-dark aside[class],html.fid-site-dark header[class],',
+    'html.fid-site-dark footer[class]{background-image:none!important;}',
     // 第二档：带 class 的 div/section（站点常用双类名白底区块）
     'html.fid-site-dark div[class],html.fid-site-dark section[class],',
     'html.fid-site-dark article[class],html.fid-site-dark aside[class],',
@@ -253,6 +261,41 @@
     'border-color:hsl(36 70% 40%)!important;color:#fff!important;}',
     'html.fid-site-dark .btn-info{background:hsl(195 70% 34%)!important;',
     'border-color:hsl(195 70% 34%)!important;color:#fff!important;}',
+    // ---- 第三批组件补漏
+    'html.fid-site-dark .jumbotron,html.fid-site-dark .page-header,',
+    'html.fid-site-dark .thumbnail .caption,html.fid-site-dark .modal-header,',
+    'html.fid-site-dark .modal-footer,html.fid-site-dark .panel-default>.panel-heading,',
+    'html.fid-site-dark .panel-default>.panel-footer{background:#1d1f26!important;',
+    'border-color:#2a2d36!important;color:#e6e7eb!important;}',
+    'html.fid-site-dark .popover,html.fid-site-dark .tooltip-inner{background:#1d1f26!important;',
+    'border-color:#2a2d36!important;color:#e6e7eb!important;}',
+    'html.fid-site-dark .popover-title{background:#22242c!important;color:#e6e7eb!important;}',
+    'html.fid-site-dark .input-group-addon,html.fid-site-dark .pager li>a,',
+    'html.fid-site-dark .pager li>span{background:#22242c!important;',
+    'border-color:#33363f!important;color:#c9ccd4!important;}',
+    'html.fid-site-dark .progress,html.fid-site-dark .img-thumbnail{background:#22242c!important;',
+    'border-color:#33363f!important;}',
+    'html.fid-site-dark .progress-bar{background:hsl(195 100% 32%)!important;}',
+    'html.fid-site-dark .tab-content>.tab-pane,html.fid-site-dark .media-object,',
+    'html.fid-site-dark .media-body{background:transparent!important;}',
+    'html.fid-site-dark .list-group-item.active,html.fid-site-dark .list-group-item.active:hover{',
+    'background:hsl(195 100% 32%)!important;border-color:hsl(195 100% 32%)!important;color:#fff!important;}',
+    'html.fid-site-dark .bg-primary{background:hsl(195 100% 32%)!important;}',
+    'html.fid-site-dark .bg-success{background:rgba(47,184,148,.18)!important;}',
+    'html.fid-site-dark .bg-danger{background:rgba(232,98,102,.18)!important;}',
+    'html.fid-site-dark .bg-warning{background:rgba(240,180,80,.16)!important;}',
+    'html.fid-site-dark .bg-info{background:rgba(94,194,242,.15)!important;}',
+    'html.fid-site-dark .text-primary{color:#5ec2f2!important;}',
+    'html.fid-site-dark .text-success{color:#7fe0c3!important;}',
+    'html.fid-site-dark .text-danger{color:#ff9ba0!important;}',
+    'html.fid-site-dark .text-warning{color:#f2c078!important;}',
+    'html.fid-site-dark .text-info{color:#8fd6f7!important;}',
+    'html.fid-site-dark .text-muted{color:#9aa0ac!important;}',
+    'html.fid-site-dark .dropdown-header{color:#767b87!important;}',
+    'html.fid-site-dark .navbar-nav>.open>a,html.fid-site-dark .navbar-nav>.open>a:hover,',
+    'html.fid-site-dark .navbar-nav>.open>a:focus{background:#2a2d36!important;color:#fff!important;}',
+    'html.fid-site-dark .btn-group.open .dropdown-toggle{background:#2a2d36!important;',
+    'border-color:#33363f!important;}',
     // 宿主只负责占位与层级，视觉全部在 Shadow DOM 内完成
     '.fantia-id-bar{position:relative;z-index:2;display:block;box-sizing:border-box;',
     'width:calc(100% - 16px);min-width:0;margin:8px;padding:0;border:0;border-radius:10px;',
