@@ -9,6 +9,8 @@
 // @match        https://fantia.jp/market*
 // @match        https://fantia.jp/ranking*
 // @match        https://fantia.jp/search*
+// @updateURL    http://192.168.2.210:3100/akinxkk/fantia-userscripts/raw/branch/main/fantia-product-search-enhancer.user.js
+// @downloadURL  http://192.168.2.210:3100/akinxkk/fantia-userscripts/raw/branch/main/fantia-product-search-enhancer.user.js
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
