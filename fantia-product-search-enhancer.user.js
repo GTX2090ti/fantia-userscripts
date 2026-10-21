@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Fantia 商品搜索增强 · 商品 ID 快取
 // @namespace    fantia.jp
-// @version      1.3.0
-// @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史，页首筛选框可按 ID 或标题实时过滤卡片；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下自动重排为多列网格（全页型通用）；界面采用 BewlyCat 风格的毛玻璃浮层。
+// @version      1.3.1
+// @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史，页首筛选框可按 ID 或标题实时过滤卡片；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下自动重排为多列网格（全页型通用）；适配手机触屏（小屏抽屉面板、加大点按目标）；界面采用 BewlyCat 风格的毛玻璃浮层。
 // @author       小蓝
 // @match        https://fantia.jp/fanclubs*
 // @match        https://fantia.jp/products*
@@ -169,6 +169,12 @@
     '.fantia-panel{position:fixed;right:calc(18px + env(safe-area-inset-right,0px));',
     'bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:2147483000;display:none;',
     'padding:0;border:0;background:transparent;box-shadow:none;}',
+    // 手机小屏：面板左右贴边成半屏抽屉，避开 FAB
+    '@media (max-width:600px){',
+    '.fantia-panel{left:calc(12px + env(safe-area-inset-left,0px));',
+    'right:calc(12px + env(safe-area-inset-right,0px));',
+    'bottom:calc(88px + env(safe-area-inset-bottom,0px));}',
+    '}',
     // 宽屏：撑满视口，运行时识别的网格/侧栏标记负责实际重排
     '@media (min-width:1200px){',
     'html.fid-wide #main > .container{max-width:100%!important;width:100%!important;',
@@ -321,6 +327,19 @@
     '.hist-empty{color:var(--fid-text-3);font-size:12px;line-height:18px;text-align:center;padding:6px 0;}',
     '.panel-foot{color:var(--fid-text-3);font-size:11px;line-height:16px;}',
     '@keyframes fid-panel-in{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}',
+    // 手机小屏：面板占满可用宽度，历史列表拉高，主按钮加大
+    '@media (max-width:600px){',
+    '.panel{width:100%;max-width:100%;padding:12px 10px;}',
+    '.copy-all{height:42px;}',
+    '.hist-list{max-height:38vh;}',
+    '}',
+    // 触屏：点按目标放大到 ≥38px
+    '@media (pointer:coarse){',
+    '.hist-item{height:38px;}',
+    '.hist-copy{width:28px;height:28px;}',
+    '.hist-clear{padding:8px 4px;}',
+    '.hist-id{font-size:13.5px;}',
+    '}',
     '@media (prefers-reduced-motion:reduce){.panel{animation:none;}}'
   ].join('');
 

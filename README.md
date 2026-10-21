@@ -13,7 +13,7 @@ https://gitea.51370.xyz:7999/akinxkk/fantia-userscripts/raw/branch/main/fantia-p
 
 ## 脚本清单
 
-### `fantia-product-search-enhancer.user.js` · Fantia 商品搜索增强（v1.3.0）
+### `fantia-product-search-enhancer.user.js` · Fantia 商品搜索增强（v1.3.1）
 
 - 商品搜索/列表页：每张商品卡片的图片与介绍下方注入 `商品 ID <数字>` + 「复制」按钮，一键复制链接尾部数字；复制过的卡片持久标记「已复制」，悬停按钮可恢复「复制」便于重拷
 - 页首筛选框：按商品 ID 或标题关键词实时过滤本页卡片（防抖 150ms，Esc 或 × 清空），显示命中数
@@ -25,6 +25,7 @@ https://gitea.51370.xyz:7999/akinxkk/fantia-userscripts/raw/branch/main/fantia-p
 - 不绑定固定 class，按 DOM 结构识别卡片；兼容整卡可点与「外层 div + 内链只包缩略图」两种布局
 - MutationObserver + 轮询兜底，覆盖分页/无限滚动/SPA 跳转；商品详情页与帖子页自动跳过
 - 剪贴板 clipboard API 失败时自动降级 execCommand；BewlyCat 风格毛玻璃 UI，自动适配暗色模式
+- 手机适配：小屏面板左右贴边成抽屉、历史列表拉高，触屏点按目标 ≥38px，FAB 放大到 52px，480px 以下隐藏「商品 ID」文字标签
 
 ## 自动更新
 
