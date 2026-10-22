@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Fantia 商品搜索增强 · 商品 ID 快取
 // @namespace    fantia.jp
-// @version      1.4.3
+// @version      1.4.5
 // @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史，页首筛选框可按 ID 或标题实时过滤卡片；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下自动重排为多列网格（全页型通用）；适配手机触屏（小屏抽屉面板、加大点按目标）；面板内开关可一键切换整站黑暗模式（记忆偏好，全站页面生效）；界面采用 BewlyCat 风格的毛玻璃浮层。
 // @author       小蓝
 // @match        https://fantia.jp/*
@@ -154,9 +154,11 @@
     '}',
     // 站点级黑暗模式：html.fid-site-dark 由面板开关控制，给整个 Fantia
     // 页面刷暗色。走 Bootstrap 通用结构 + 常见容器选择器，!important 压过
-    // 站点原生浅色；图片不加滤镜，照片观感不变。
+    // 站点原生浅色；图片统一压一档亮度，避免暗底上的白底插画过曝。
     'html.fid-site-dark{color-scheme:dark;}',
     'html.fid-site-dark body{background:#141519!important;color:#e6e7eb!important;}',
+    'html.fid-site-dark img,html.fid-site-dark video{',
+    'filter:brightness(.8) contrast(.98)!important;}',
     'html.fid-site-dark #wrap,html.fid-site-dark #main{background:transparent!important;}',
     // ---- 通用兜底层（必须位于组件规则之前）：把所有普通结构性容器刷成透明，
     // 露出暗色 body。站点自定义的白底区块绝大多数是普通 div/section，这样
@@ -786,6 +788,16 @@
     });
     wrap.addEventListener('dragstart', function (ev) {
       ev.preventDefault();
+    });
+    // 再在宿主上兜一层：shadow 内的点击未拦截时仍会冒泡到卡片外层链接，
+    // 这里统一取消默认行为并截断冒泡
+    bar.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+    });
+    bar.addEventListener('auxclick', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
     });
 
     wrap.appendChild(icon);
@@ -1421,17 +1433,25 @@
   // --------------------------------------------------------------------- //
   // 无限滚动：有「下一页」的分页列表，滚近底部时自动抓取并追加卡片
   // --------------------------------------------------------------------- //
-  // 仅当宽屏网格已识别（data-fid-grid）且分页里有下一页链接时启用；
-  // 追加后复用 scan 注入 ID 条，加载失败或无更多页时自动停用。
-  var inf = { url: null, loading: false, page: 1, observer: null, sentinel: null, lastUrl: null };
+  // 仅当宽屏网格已识别（data-fid-grid）且分页里有下一页链接时启用。
+  // 触发不能只靠 IntersectionObserver 的「进入」事件：追加一页后哨兵往往
+  // 仍停在预载范围内，不会再产生交叉事件，链条就断在这里（表现为滚到
+  // 某个数量后再也加载不动）。所以每次追加后按哨兵位置显式续泵，直到
+  // 下一屏与预载区被填满；抓取失败只退避重试，不永久停用。
+  var INF_PRELOAD = 1200;
+  var INF_GAP = 300;
+  var inf = {
+    url: null, loading: false, page: 1, observer: null, sentinel: null,
+    lastUrl: null, grid: null, timer: null, fails: 0, retryAt: 0, seen: null
+  };
 
-  function paginationNextUrl(root) {
+  function paginationNextUrl(root, base) {
     var a = (root || document).querySelector(
       '.pagination li.next a[href], .pagination .next a[href], a[rel="next"]');
     if (!a) return null;
     var href = a.getAttribute('href');
     if (!href || href === '#') return null;
-    try { return new URL(href, location.href).href; } catch (e) { return null; }
+    try { return new URL(href, base || location.href).href; } catch (e) { return null; }
   }
 
   // 在解析出的下一页文档里找商品网格行（与 widenLayout 同一结构判定：
@@ -1452,6 +1472,7 @@
   }
 
   function cleanupInfiniteScroll() {
+    if (inf.timer) { clearTimeout(inf.timer); inf.timer = null; }
     if (inf.observer) { inf.observer.disconnect(); inf.observer = null; }
     if (inf.sentinel && inf.sentinel.parentNode) inf.sentinel.parentNode.removeChild(inf.sentinel);
     inf.sentinel = null;
@@ -1459,36 +1480,94 @@
     inf.loading = false;
     inf.page = 1;
     inf.lastUrl = null;
+    inf.grid = null;
+    inf.fails = 0;
+    inf.retryAt = 0;
+    inf.seen = null;
+  }
+
+  function sentinelInRange() {
+    if (!inf.sentinel || !inf.sentinel.isConnected) return false;
+    var vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    return inf.sentinel.getBoundingClientRect().top <= vh + INF_PRELOAD;
+  }
+
+  function endInfiniteScroll(msg) {
+    inf.url = null;
+    if (inf.observer && inf.sentinel) inf.observer.unobserve(inf.sentinel);
+    dbg('无限滚动结束：' + msg);
+  }
+
+  // 站点重渲染可能把哨兵摘掉，每次扫描都确认它还挂在网格后面
+  function ensureSentinel(grid) {
+    if (!inf.sentinel) {
+      inf.sentinel = document.createElement('div');
+      inf.sentinel.style.cssText = 'height:1px;flex:none;';
+    }
+    if (inf.sentinel.parentNode !== grid.parentNode ||
+        inf.sentinel.previousElementSibling !== grid) {
+      grid.parentNode.insertBefore(inf.sentinel, grid.nextSibling);
+    }
   }
 
   function setupInfiniteScroll() {
     // SPA 跳转：URL 变了就重置状态，从新页面的分页重新出发
     if (inf.lastUrl && inf.lastUrl !== location.href) cleanupInfiniteScroll();
-    if (inf.observer) return;                      // 本页已就绪
     var grid = document.querySelector('[data-fid-grid]');
+    if (!grid) return;
+
+    if (inf.observer) {
+      if (inf.grid === grid) { ensureSentinel(grid); return; }
+      cleanupInfiniteScroll();                     // 网格被整体替换：重新绑定
+      grid = document.querySelector('[data-fid-grid]');
+      if (!grid) return;
+    }
+
     var next = paginationNextUrl(document);
-    if (!grid || !next || typeof IntersectionObserver === 'undefined') return;
+    if (!next || typeof IntersectionObserver === 'undefined') return;
 
     inf.lastUrl = location.href;
+    inf.grid = grid;
     inf.url = next;
     inf.page = 1;
-    inf.sentinel = document.createElement('div');
-    inf.sentinel.style.cssText = 'height:1px;flex:none;';
-    grid.parentNode.insertBefore(inf.sentinel, grid.nextSibling);
+    inf.fails = 0;
+    inf.retryAt = 0;
+    inf.seen = {};
+    var links = collectProductLinks();
+    for (var i = 0; i < links.length; i++) inf.seen[links[i].id] = true;
 
+    ensureSentinel(grid);
     inf.observer = new IntersectionObserver(function (entries) {
       for (var i = 0; i < entries.length; i++) {
-        if (entries[i].isIntersecting) { loadNextPage(); break; }
+        if (entries[i].isIntersecting) { pumpNextPage(); break; }
       }
-    }, { rootMargin: '1000px 0px' });   // 提前 1000px 预载，滚动无感
+    }, { rootMargin: INF_PRELOAD + 'px 0px' });
     inf.observer.observe(inf.sentinel);
     dbg('无限滚动已启用，下一页：' + next);
+    pumpNextPage();                                // 首屏不满时立即补页
+  }
+
+  // 续泵：不依赖下一次交叉事件，按哨兵当前位置决定是否继续抓取
+  function pumpNextPage() {
+    if (!inf.url || inf.loading || inf.timer) return;
+    if (!sentinelInRange()) return;
+    var wait = inf.retryAt - Date.now();
+    if (wait < INF_GAP) wait = INF_GAP;
+    inf.timer = setTimeout(function () {
+      inf.timer = null;
+      loadNextPage();
+    }, wait);
   }
 
   function loadNextPage() {
     if (!inf.url || inf.loading) return;
     var grid = document.querySelector('[data-fid-grid]');
-    if (!grid) return;
+    if (!grid || !sentinelInRange()) return;
+    if (inf.grid !== grid) {                       // 网格已被替换：重新初始化
+      cleanupInfiniteScroll();
+      setupInfiniteScroll();
+      return;
+    }
     var url = inf.url;
     inf.url = null;          // 取走即清空：失败/重复触发都不会重复抓这一页
     inf.loading = true;
@@ -1500,24 +1579,40 @@
       .then(function (html) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
         var row = findGridRowIn(doc);
-        if (!row) throw new Error('下一页找不到商品网格');
+        if (!row) { endInfiniteScroll('下一页找不到商品网格'); return; }
         var cols = row.querySelectorAll(':scope > [class*="col-"]');
         var added = 0;
         for (var i = 0; i < cols.length; i++) {
+          var ids = productIdsIn(cols[i]);
+          var fresh = false;
+          for (var k in ids) {
+            if (!inf.seen[k]) { fresh = true; break; }
+          }
+          if (!fresh) continue;                    // 重复页/重复卡片不再追加
+          for (var k2 in ids) inf.seen[k2] = true;
           grid.appendChild(document.importNode(cols[i], true));
           added++;
         }
+        if (!added) { endInfiniteScroll('下一页没有新商品'); return; }
         inf.page++;
-        inf.url = paginationNextUrl(doc);   // 以下一页的分页接龙
+        inf.fails = 0;
+        inf.retryAt = 0;
+        inf.url = paginationNextUrl(doc, url);     // 以抓取页为基准接龙
         dbg('无限滚动：追加第 ' + inf.page + ' 页（' + added + ' 卡片），下一页=' + inf.url);
-        scan();                             // 新卡片立即注入 ID 条/套用筛选
-        if (!inf.url && inf.observer && inf.sentinel) inf.observer.unobserve(inf.sentinel);
+        scan();                                    // 新卡片立即注入 ID 条/套用筛选
+        if (!inf.url) endInfiniteScroll('没有下一页');
       })
       .catch(function (e) {
-        dbg('无限滚动停止：' + e.message);   // 失败即停，分页链接仍可手动翻页
-        if (inf.observer && inf.sentinel) inf.observer.unobserve(inf.sentinel);
+        inf.fails++;
+        inf.url = inf.url || url;                  // 恢复地址，退避后重试
+        var backoff = Math.min(30000, 1200 * inf.fails * inf.fails);
+        inf.retryAt = Date.now() + backoff;
+        dbg('无限滚动抓取失败（第 ' + inf.fails + ' 次，' + Math.round(backoff / 1000) + 's 后重试）：' + e.message);
       })
-      .then(function () { inf.loading = false; });
+      .then(function () {
+        inf.loading = false;
+        pumpNextPage();
+      });
   }
 
   // --------------------------------------------------------------------- //
