@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Fantia 商品搜索增强 · 商品 ID 快取
 // @namespace    fantia.jp
-// @version      1.5.1
-// @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史；页首增强栏可按 ID 或标题实时过滤卡片，FC 商品页还内嵌站点原生关键词搜索与詳細検索（标签/状态/商品类型/排序），并让 FC 标签栏固定、增强搜索栏跟随滚动；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下自动重排为多列网格（全页型通用）；适配手机触屏（小屏抽屉面板、加大点按目标）；面板内开关可一键切换整站黑暗模式（记忆偏好，全站页面生效）；界面采用 BewlyCat 风格的毛玻璃浮层。
+// @version      1.5.3
+// @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史；页首增强栏可按 ID 或标题实时过滤卡片，FC 商品页还内嵌站点原生关键词搜索与詳細検索（标签/状态/商品类型/排序），标签栏沿用站点原生吸顶、增强搜索栏跟随滚动；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下识别到商品网格时自动重排为多列网格，Market 保持站点原生居中布局；适配手机触屏（小屏抽屉面板、加大点按目标）；面板内开关可一键切换整站黑暗模式（记忆偏好，全站页面生效）；界面采用 BewlyCat 风格的毛玻璃浮层。
 // @author       小蓝
 // @match        https://fantia.jp/*
-// @updateURL    http://192.168.2.210:3100/akinxkk/fantia-userscripts/raw/branch/main/fantia-product-search-enhancer.user.js
-// @downloadURL  http://192.168.2.210:3100/akinxkk/fantia-userscripts/raw/branch/main/fantia-product-search-enhancer.user.js
+// @updateURL    https://raw.githubusercontent.com/GTX2090ti/fantia-userscripts/main/fantia-product-search-enhancer.user.js
+// @downloadURL  https://raw.githubusercontent.com/GTX2090ti/fantia-userscripts/main/fantia-product-search-enhancer.user.js
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
@@ -36,8 +36,9 @@
  *      关键词提交 q[name_cont]，「詳細検索」面板支持标签 q[tag]、状态
  *      q[sale_status]、商品类型 q[sale_type]、排序 q[s]，走 Fantia 自己
  *      的搜索路由；原生的关键词行会被隐藏，避免出现两套搜索框。
- *    - FC 页面顶部标签栏在滚过后固定在视口顶端；增强搜索栏随滚动吸附
- *      在标签栏下方（祖先 overflow 会截断 sticky，改用 fixed 层 + 占位槽）。
+ *    - FC 页面顶部标签栏沿用站点自身的吸顶；增强搜索栏随滚动吸附在
+ *      标签栏下方（祖先 overflow 会截断 sticky，改用 fixed 层 + 占位槽），
+ *      标签栏激活项为深蓝底白字。
  * 4. 无限滚动：分页里存在「下一页」时，滚动近底部（提前 1000px 预载）
  *    自动抓取下一页 HTML、抽取商品网格追加到当前页并接龙后续分页；
  *    加载失败或没有更多页时自动停用，原分页链接保留可手动跳页。
@@ -61,8 +62,8 @@
  * 打上 data-fid-grid 标记并重排为 auto-fill 网格；再向外找一层
  * 「侧栏 + 内容」的 Bootstrap 行，打上 data-fid-split 标记（侧栏定宽
  * 220px、内容区占满余宽）。不依赖 #fanclubs-products-search 等具体
- * ID，社团商品页 / Market / 搜索结果 / 排行榜的网格型容器都能适配；
- * 识别不到网格的页面保持原布局，仅放宽容器。
+ * ID，社团商品页 / 搜索结果 / 排行榜的网格型容器都能适配；Market 保持
+ * 站点原生居中布局。只有识别到网格时才放宽容器，避免把居中页面撑成通栏。
  *
  * 触发与刷新
  * ----------
@@ -324,18 +325,12 @@
     'html.fid-fc-search .fantia-filter-bar.fid-filter-fixed{position:fixed;',
     'top:var(--fid-nav-h,0px);z-index:1010;margin:0!important;}',
     'html.fid-fc-search #fanclubs-products-search{scroll-margin-top:calc(var(--fid-nav-h,0px) + 56px);}',
-    // FC 标签栏的原容器很矮，sticky 会被截断；滚动越过原位置后用固定克隆层顶住
-    '.fid-nav-affix{position:fixed;top:0;left:0;right:0;z-index:1020;display:none;',
-    'background:var(--fid-elevated)!important;border-bottom:1px solid var(--fid-border);',
-    'box-shadow:var(--fid-shadow-1);-webkit-backdrop-filter:var(--fid-glass);',
-    'backdrop-filter:var(--fid-glass);}',
-    '.fid-nav-affix.on{display:block;}',
-    '.fid-nav-affix .fanclub-tabs{background:transparent!important;margin:0!important;}',
-    '.fid-nav-affix .scroll-tabs{margin-bottom:0!important;}',
-    '.fid-nav-affix .tab-item{color:var(--fid-text-2)!important;}',
-    '.fid-nav-affix .tab-item.active{color:var(--fid-theme)!important;}',
-    // 站点暗色规则会给带 class 的 div 刷透明底，这里用更高优先级保住毛玻璃底
-    'html.fid-site-dark body div.fid-nav-affix{background:var(--fid-elevated)!important;}',
+    // FC 标签栏改由站点自身吸顶，不再克隆；激活项统一成深蓝底白字
+    'html.fid-fc-search .fanclub-tabs .tab-item.active{background:#123a63!important;',
+    'color:#fff!important;}',
+    'html.fid-fc-search .fanclub-tabs .tab-item.active::after{background:#123a63!important;}',
+    // 暗色主题会清掉区块底色；吸顶栏悬浮时用页面同色实底，避免透出下方内容
+    'html.fid-site-dark .fanclub-tabs.is-fixed{background:#141519!important;}',
     '.fantia-panel{position:fixed;right:calc(18px + env(safe-area-inset-right,0px));',
     'bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:2147483000;display:none;',
     'padding:0;border:0;background:transparent;box-shadow:none;}',
@@ -632,7 +627,10 @@
 
   function syncPageMode() {
     try {
-      document.documentElement.classList.toggle('fid-wide', shouldRun());
+      // 只有真正识别到商品网格才放宽容器；否则市场首页/分类页这类
+      // 自带居中布局的页面会被撑成全宽，内容整体错位
+      var wide = shouldRun() && !!document.querySelector('[data-fid-grid]');
+      document.documentElement.classList.toggle('fid-wide', wide);
     } catch (e) { /* 不阻断主流程 */ }
   }
 
@@ -782,6 +780,22 @@
     return lastSingle || anchor.parentElement;
   }
 
+  // 同一商品常由缩略图/标题等多个链接指向，不同链接解析出的卡片容器可能不同。
+  // 取「仍只含这一个商品的最大祖先」作为作用域，保证一张卡片只保留一条 ID 条。
+  function cardScope(anchor) {
+    var el = anchor;
+    var scope = null;
+    for (var depth = 0; depth < 10 && el && el !== document.body; depth++) {
+      var ids = productIdsIn(el);
+      var count = 0;
+      for (var k in ids) count++;
+      if (count > 1) break;
+      scope = el;
+      el = el.parentElement;
+    }
+    return scope || anchor.parentElement || anchor;
+  }
+
   // --------------------------------------------------------------------- //
   // 注入 ID 条
   // --------------------------------------------------------------------- //
@@ -921,21 +935,43 @@
       cleanupInfiniteScroll(); // SPA 跳进详情页时把无限滚动一并收走
       closePanel();
       removeFilterBar();       // SPA 跳进详情页时把筛选框一并收走
-      removeAffixNav();        // SPA 跳进详情页时把固定标签栏一并收走
+      removeNavOffset();       // SPA 跳进详情页时清掉标签栏高度避让
       updateFab();             // SPA 跳进详情页时把悬浮按钮收走
       return;
     }
     injectCss();
     syncTheme();
     widenLayout();             // 宽屏网格/侧栏重排（运行时结构识别）
-    ensureFilterBar();
-    ensureAffixNav();          // FC 标签栏滚动后固定
-    setupInfiniteScroll();     // 有下一页时启用自动加载
+    syncPageMode();            // 标记网格后再决定是否放宽容器
     var links = collectProductLinks();
+    ensureFilterBar(links.length > 0);
+    ensureNavOffset();         // 量 FC 标签栏高度（站点自身负责吸顶）
+    setupInfiniteScroll();     // 有下一页时启用自动加载
     var added = 0;
+    var cleanedScopes = new Set();
     for (var i = 0; i < links.length; i++) {
       var card = resolveCard(links[i].a);
       if (!card) continue;
+      var scope = cardScope(links[i].a);
+
+      // 清掉旧版本/重复注入在同一张卡片里留下的条，保留最外层（最靠近卡片）的一条
+      if (scope && !cleanedScopes.has(scope)) {
+        cleanedScopes.add(scope);
+        var scopedBars = scope.querySelectorAll('.fantia-id-bar');
+        if (scopedBars.length > 1) {
+          var keep = scopedBars[0];
+          var keepDepth = Infinity;
+          for (var sb = 0; sb < scopedBars.length; sb++) {
+            var depth = 0;
+            var p = scopedBars[sb].parentElement;
+            while (p && p !== scope) { p = p.parentElement; depth++; }
+            if (p === scope && depth < keepDepth) { keepDepth = depth; keep = scopedBars[sb]; }
+          }
+          for (var sb2 = 0; sb2 < scopedBars.length; sb2++) {
+            if (scopedBars[sb2] !== keep) scopedBars[sb2].parentNode.removeChild(scopedBars[sb2]);
+          }
+        }
+      }
 
       // 卡片内只有一个商品时以它为准；SPA 复用 DOM 后条上的旧 ID 会被纠正
       var ids = productIdsIn(card);
@@ -945,10 +981,11 @@
       var bar = card.__fidBar;
       if (bar && bar.parentNode !== card) bar = null;
       if (!bar && card.querySelector) bar = card.querySelector('.fantia-id-bar');
+      if (!bar && scope) bar = scope.querySelector('.fantia-id-bar');
 
       if (bar) {
         if (bar.getAttribute('data-fantia-product-id') !== canonical) updateBar(bar, canonical);
-        card.__fidBar = bar;
+        if (bar.parentNode === card) card.__fidBar = bar;
         continue;
       }
 
@@ -1026,7 +1063,7 @@
   var fab = null;
   var fabBadge = null;
   function ensureFab() {
-    if (fab) return;
+    if (fab || !document.body) return;
     fab = document.createElement('div');
     fab.className = 'fantia-fab';
     fab.title = '商品 ID 面板';
@@ -1322,13 +1359,14 @@
   var filterRo = null;
 
   function filterAnchor() {
-    // 优先插到宽屏重排的「侧栏+内容」行之前，其次网格，再退回内容包一层
+    // 优先插到宽屏重排的「侧栏+内容」行之前，其次网格，再退回内容区首个子元素
     var anchor = document.querySelector('[data-fid-split]') ||
                  document.querySelector('[data-fid-grid]');
     if (anchor) return anchor;
     var container = document.querySelector('#main > .container') ||
                     document.querySelector('#main');
-    return container || null;
+    // 插到容器内部，避免在 Market 等居中页面上插出一条通栏筛选框
+    return (container && container.firstElementChild) || container || null;
   }
 
   // 当前页是否是 FC 商品列表，并带回原生搜索的现有条件
@@ -1565,7 +1603,10 @@
     try { document.documentElement.classList.remove('fid-fc-search'); } catch (e) { /* 忽略 */ }
   }
 
-  function ensureFilterBar() {
+  function ensureFilterBar(hasProducts) {
+    var ctx = fcSearchContext();
+    // 没有商品可筛时不要插入空筛选栏（Market 首页/分类页会被顶出一条）
+    if (!ctx && !hasProducts) { removeFilterBar(); return; }
     var anchor = filterAnchor();
     if (!anchor) return;
 
@@ -1583,7 +1624,6 @@
     }
 
     filterUrlKey = urlKey;
-    var ctx = fcSearchContext();
 
     filterSlot = document.createElement('div');
     filterSlot.className = 'fantia-filter-slot';
@@ -1751,98 +1791,38 @@
   }
 
   // --------------------------------------------------------------------- //
-  // FC 标签栏固定
-  // 原 nav 位于高度有限的 fanclub-show-header 内，直接 sticky 会在父容器
-  // 结束处被截断；因此滚动越过原位置后展示一个 fixed 克隆层，原 nav 留在
-  // 文档流里保证布局不变。增强搜索栏的祖先带 overflow，sticky 会被截断，
-  // 因此由 JS 切换 fixed 并用占位槽顶住高度。
+  // FC 标签栏吸顶
+  // 站点自身会在滚动后给 .js-affix-nav 加 is-fixed 并把原栏 fixed 到顶部，
+  // 因此不再克隆；这里只量原栏高度写进 --fid-nav-h，供增强搜索栏吸顶时避让。
+  // 增强搜索栏的祖先带 overflow，sticky 会被截断，因此由 JS 切换 fixed
+  // 并用占位槽顶住高度。
   // --------------------------------------------------------------------- //
-  var affixHost = null;
-  var affixSource = null;
-  var affixUrlKey = '';
-  var affixHeight = 0;
-  var affixSyncArrows = null;
+  var navSource = null;
+  var navHeight = 0;
 
-  function removeAffixNav() {
-    if (affixHost && affixHost.parentNode) affixHost.parentNode.removeChild(affixHost);
-    affixHost = null;
-    affixSource = null;
-    affixUrlKey = '';
-    affixHeight = 0;
-    affixSyncArrows = null;
+  function removeNavOffset() {
+    navSource = null;
+    navHeight = 0;
     try { document.documentElement.style.removeProperty('--fid-nav-h'); } catch (e) { /* 忽略 */ }
   }
 
-  function syncAffixNav() {
-    if (!affixHost || !affixSource) return;
-    if (!affixSource.isConnected) { removeAffixNav(); return; }
-    var rect = affixSource.getBoundingClientRect();
-    var h = Math.round(rect.height);
-    if (h > 0 && h !== affixHeight) {
-      affixHeight = h;
+  function syncNavOffset() {
+    if (!navSource) return;
+    if (!navSource.isConnected) { removeNavOffset(); return; }
+    var h = Math.round(navSource.getBoundingClientRect().height);
+    if (h > 0 && h !== navHeight) {
+      navHeight = h;
       try { document.documentElement.style.setProperty('--fid-nav-h', h + 'px'); } catch (e) { /* 忽略 */ }
-    }
-    var on = rect.top <= 0.5;
-    var wasOn = affixHost.classList.contains('on');
-    if (on !== wasOn) {
-      affixHost.classList.toggle('on', on);
-      // 克隆层 display:none 时量不到宽度，显示后再判断左右箭头是否该露出
-      if (on && affixSyncArrows) affixSyncArrows();
     }
   }
 
-  function ensureAffixNav() {
-    if (!shouldRun()) { removeAffixNav(); return; }
+  function ensureNavOffset() {
+    if (!shouldRun()) { removeNavOffset(); return; }
     var src = document.querySelector('.fanclub-tabs.js-affix-nav') ||
               document.querySelector('nav.scroll-tabs');
-    if (!src) { removeAffixNav(); return; }
-    var key = location.pathname;
-    if (affixHost && affixHost.isConnected && affixUrlKey === key && affixSource === src) {
-      syncAffixNav();
-      return;
-    }
-    removeAffixNav();
-    affixSource = src;
-    affixUrlKey = key;
-    affixHost = document.createElement('div');
-    affixHost.className = 'fid-nav-affix';
-    var clone = src.cloneNode(true);
-    clone.classList.remove('js-affix-nav');
-    clone.removeAttribute('id');
-    affixHost.appendChild(clone);
-    var main = clone.querySelector('.scroll-tabs-main');
-    var arrows = clone.querySelectorAll('.scroll-tab-arrow');
-    if (main && arrows.length) {
-      var syncArrows = function () {
-        var left = clone.querySelector('.scroll-tab-arrow-left');
-        var right = clone.querySelector('.scroll-tab-arrow-right');
-        if (left) left.classList.toggle('is-hide', main.scrollLeft <= 1);
-        if (right) {
-          right.classList.toggle('is-hide',
-            main.scrollLeft + main.clientWidth >= main.scrollWidth - 1);
-        }
-      };
-      affixSyncArrows = syncArrows;
-      for (var i = 0; i < arrows.length; i++) {
-        (function (btn) {
-          btn.addEventListener('click', function (ev) {
-            ev.preventDefault();
-            var dir = btn.classList.contains('scroll-tab-arrow-left') ? -1 : 1;
-            main.scrollLeft += dir * Math.max(120, Math.round(main.clientWidth * 0.6));
-            syncArrows();
-          });
-        })(arrows[i]);
-      }
-      main.addEventListener('scroll', syncArrows, { passive: true });
-      syncArrows();
-    }
-    document.body.appendChild(affixHost);
-    try {
-      var h = Math.round(src.getBoundingClientRect().height) || 52;
-      affixHeight = h;
-      document.documentElement.style.setProperty('--fid-nav-h', h + 'px');
-    } catch (e) { /* 忽略 */ }
-    syncAffixNav();
+    if (!src) { removeNavOffset(); return; }
+    navSource = src;
+    syncNavOffset();
   }
 
   // --------------------------------------------------------------------- //
@@ -1851,6 +1831,8 @@
   // 网格 = 直接子元素里 >=2 个含商品卡片的 .row（Bootstrap col-* 布局），
   // 侧栏 = 网格外层再包一层的兄弟列（不含商品链接）。识别不到保持原样。
   function widenLayout() {
+    // Market 有自己的一套居中布局，强行撑宽会把分类区/横幅挤成通栏
+    if (/^\/market(?:[/?#]|$)/.test(location.pathname || '')) return;
     var links = collectProductLinks();
     if (!links.length) return;
     var tagged = new Set();   // 元素去重必须用 Set：普通对象会把所有元素并成同一个键
@@ -2075,14 +2057,22 @@
       })
       .then(function () {
         inf.loading = false;
-        pumpNextPage();
+        // 追加内容会触发滚动锚定，哨兵位置要等布局稳定后才准确；立即续泵
+        // 会读到旧位置而提前收手，延迟一拍让锚定先完成
+        setTimeout(pumpNextPage, 120);
       });
   }
 
   // --------------------------------------------------------------------- //
   // 启动：首扫 + 轮询兜底 + MutationObserver + SPA 跳转
   // --------------------------------------------------------------------- //
+  var booted = false;
   function boot() {
+    if (booted) return;
+    // 超时兜底可能在 <body> 解析出来之前触发：此时注入 FAB 会抛错并中断
+    // 整个启动流程（观察器/轮询都来不及挂上），等 body 出现再启动
+    if (!document.body) { setTimeout(boot, 250); return; }
+    booted = true;
     applySiteDark();   // 先于首扫恢复黑暗模式，避免页面加载闪白
     syncTheme();
     syncPageMode();
@@ -2110,22 +2100,20 @@
 
     setInterval(scan, 1500);  // 轮询兜底：覆盖懒加载/分页/框架替换
 
-    var affixRaf = null;
+    var navRaf = null;
     function syncAnchors() {
-      syncAffixNav();
+      syncNavOffset();
       syncFilterAffix();
+      pumpNextPage();   // IO 在滚动锚定后可能不再派发交叉事件，滚动时兜底续泵
     }
     window.addEventListener('scroll', function () {
-      if (affixRaf) return;
-      affixRaf = requestAnimationFrame(function () {
-        affixRaf = null;
+      if (navRaf) return;
+      navRaf = requestAnimationFrame(function () {
+        navRaf = null;
         syncAnchors();
       });
     }, { passive: true });
-    window.addEventListener('resize', function () {
-      syncAnchors();
-      if (affixSyncArrows) affixSyncArrows();
-    });
+    window.addEventListener('resize', syncAnchors);
 
     // 点空白处收起詳細検索面板（Shadow DOM 内部点击不算）
     document.addEventListener('click', function (ev) {
@@ -2145,6 +2133,8 @@
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
+    // 站外统计/广告脚本偶尔会长时间占住 DOMContentLoaded，超时兜底启动
+    setTimeout(boot, 2500);
   } else {
     boot();
   }
