@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Fantia 商品搜索增强 · 商品 ID 快取
 // @namespace    fantia.jp
-// @version      1.5.3
-// @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史；页首增强栏可按 ID 或标题实时过滤卡片，FC 商品页还内嵌站点原生关键词搜索与詳細検索（标签/状态/商品类型/排序），标签栏沿用站点原生吸顶、增强搜索栏跟随滚动；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下识别到商品网格时自动重排为多列网格，Market 保持站点原生居中布局；适配手机触屏（小屏抽屉面板、加大点按目标）；面板内开关可一键切换整站黑暗模式（记忆偏好，全站页面生效）；界面采用 BewlyCat 风格的毛玻璃浮层。
+// @version      1.5.6
+// @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史；页首增强栏可按 ID 或标题实时过滤卡片，FC 商品页还内嵌站点原生关键词搜索与詳細検索（标签/状态/商品类型/排序），FC 投稿页提供同款增强栏（关键词本地筛当前页、标签/排序走站点搜索），标签栏沿用站点原生吸顶、增强搜索栏跟随滚动；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下识别到商品/投稿网格时自动重排为多列网格，社团投稿列表与商品列表使用同一套布局，Market 保持站点原生居中布局；适配手机触屏（小屏抽屉面板、加大点按目标）；面板内开关可一键切换整站黑暗模式（记忆偏好，全站页面生效）；界面采用 BewlyCat 风格的毛玻璃浮层。
 // @author       小蓝
 // @match        https://fantia.jp/*
 // @updateURL    https://raw.githubusercontent.com/GTX2090ti/fantia-userscripts/main/fantia-product-search-enhancer.user.js
@@ -28,14 +28,19 @@
  *          点击条目可再次复制，支持一键清空；
  *    - 复制过的商品，其卡片 ID 条上的按钮会持久显示「已复制」，
  *      悬停按钮可恢复成「复制」以便再次复制。
- * 3. 页首搜索/筛选栏：自动插入到商品区上方。
- *    - 任意列表页：按商品 ID 或标题关键词实时过滤本页卡片（隐藏不匹配
- *      项并显示命中数），Esc 或 × 一键清空；筛选生效时悬浮按钮的徽标
- *      与「复制全部」都只统计可见卡片。
+ * 3. 页首搜索/筛选栏：自动插入到列表区上方。
+ *    - 任意列表页：按商品 ID 或标题关键词实时过滤本页卡片（标题取自
+ *      img[alt] / link-block[title]），隐藏不匹配的网格单元并显示命中数，
+ *      命中卡片自动聚到网格最前；Esc 或 × 一键清空。筛选生效时悬浮按钮
+ *      的徽标与「复制全部」都只统计可见卡片。
  *    - FC 商品页（/fanclubs/<id>/products）：额外提供站点原生搜索——
  *      关键词提交 q[name_cont]，「詳細検索」面板支持标签 q[tag]、状态
  *      q[sale_status]、商品类型 q[sale_type]、排序 q[s]，走 Fantia 自己
  *      的搜索路由；原生的关键词行会被隐藏，避免出现两套搜索框。
+ *    - FC 投稿页（/fanclubs/<id>/posts）：同款增强栏。站点投稿搜索只有
+ *      标签 q[tag] 与排序 q[s]，没有关键词参数，所以输入框按帖子 ID/日期
+ *      实时筛选当前页，「詳細検索」提交标签/排序走站点搜索；原生排序行
+ *      同样隐藏。
  *    - FC 页面顶部标签栏沿用站点自身的吸顶；增强搜索栏随滚动吸附在
  *      标签栏下方（祖先 overflow 会截断 sticky，改用 fixed 层 + 占位槽），
  *      标签栏激活项为深蓝底白字。
@@ -58,12 +63,14 @@
  *
  * 宽屏布局（>=1200px，运行时结构识别，全页型通用）
  * ------------------------------------------------
- * 从已识别的商品卡片向上找"直接子元素里有 >=2 个含商品卡片的 .row"，
- * 打上 data-fid-grid 标记并重排为 auto-fill 网格；再向外找一层
- * 「侧栏 + 内容」的 Bootstrap 行，打上 data-fid-split 标记（侧栏定宽
- * 220px、内容区占满余宽）。不依赖 #fanclubs-products-search 等具体
- * ID，社团商品页 / 搜索结果 / 排行榜的网格型容器都能适配；Market 保持
- * 站点原生居中布局。只有识别到网格时才放宽容器，避免把居中页面撑成通栏。
+ * 从已识别的商品卡片（或社团投稿列表页的 .module.post 卡片）向上找
+ * "直接子元素里有 >=2 个含同类卡片的 .row"，打上 data-fid-grid 标记并
+ * 重排为 auto-fill 网格；再向外找一层「侧栏 + 内容」的 Bootstrap 行，
+ * 打上 data-fid-split 标记（侧栏定宽 220px、内容区占满余宽）。不依赖
+ * #fanclubs-products-search 等具体 ID，社团商品页 / 投稿列表 / 搜索结果 /
+ * 排行榜的网格型容器都能适配；Market 保持站点原生居中布局。只有识别到
+ * 网格时才放宽容器，避免把居中页面撑成通栏。投稿页套同一套布局并启用
+ * 增强搜索栏，商品 ID 条、悬浮按钮和无限滚动仍只在商品列表启用。
  *
  * 触发与刷新
  * ----------
@@ -98,6 +105,7 @@
   var PRODUCT_HREF_RE = /\/products\/(\d+)(?:[/?#]|$)/;
   var DETAIL_PAGE_RE = /^\/products\/\d+(?:[/?#]|$)/;
   var POST_PAGE_RE = /^\/posts\/\d+(?:[/?#]|$)/;
+  var POST_LIST_RE = /^\/fanclubs\/\d+\/posts(?:[/?#]|$)/;
   // 只在这些列表/搜索类页面生效；商品详情页、帖子详情页不注入
   var PAGE_RE = /^\/(?:fanclubs|products|market|ranking|search)(?:[/?#]|$)/;
 
@@ -319,7 +327,8 @@
     '.fantia-filter-bar{display:block;width:100%;margin:0 0 14px;padding:0;border:0;',
     'background:transparent;box-shadow:none;font:13px/20px var(--fid-font);}',
     // FC 商品页：原生关键词行已并入增强栏，隐藏避免重复（标签页/分页不动）
-    'html.fid-fc-search #fanclubs-products-search .fc-search{display:none!important;}',
+    // FC 商品页/投稿页的原生排序行由增强栏替代，避免出现两套搜索
+    'html.fid-fc-search .panel-body .fc-search{display:none!important;}',
     // FC 商品页：祖先 overflow 会截断 sticky，改为脚本驱动的 fixed 跟随 + 占位槽
     'html.fid-fc-search .fantia-filter-slot{display:block;width:100%;}',
     'html.fid-fc-search .fantia-filter-bar.fid-filter-fixed{position:fixed;',
@@ -466,6 +475,7 @@
     'box-shadow:var(--fid-shadow-1),var(--fid-edge-glow);-webkit-backdrop-filter:var(--fid-glass);backdrop-filter:var(--fid-glass);}',
     '.fid-adv.open{display:block;}',
     '.fid-adv-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;}',
+    '.fid-adv-note{grid-column:1/-1;margin:0;color:var(--fid-text-3);font-size:11px;line-height:16px;}',
     '.fid-field{display:flex;flex-direction:column;gap:4px;min-width:0;}',
     '.fid-field>span{color:var(--fid-text-3);font-size:11px;line-height:16px;letter-spacing:.2px;}',
     '.fid-field input,.fid-field select{box-sizing:border-box;width:100%;height:32px;padding:0 9px;',
@@ -1343,6 +1353,7 @@
   // - 所有列表页：输入时按商品 ID / 标题实时筛选已加载卡片。
   // --------------------------------------------------------------------- //
   var FC_PRODUCTS_RE = /^\/fanclubs\/(\d+)\/products(?:\/|$)/;
+  var FC_POSTS_RE = /^\/fanclubs\/(\d+)\/posts(?:\/|$)/;
   var filterHost = null;
   var filterInput = null;
   var filterCount = null;
@@ -1375,6 +1386,7 @@
     if (!m) return null;
     var sp = new URLSearchParams(location.search || '');
     return {
+      kind: 'product',
       base: '/fanclubs/' + m[1] + '/products',
       tab: sp.get('product_tab') || 'all',
       keyword: sp.get('q[name_cont]') || '',
@@ -1385,18 +1397,52 @@
     };
   }
 
+  // 投稿列表只支持标签 q[tag] 与排序 q[s]；关键词没有服务端参数，
+  // 因此输入框只做当前页筛选，标签/排序才提交站点搜索
+  function fcPostSearchContext() {
+    var m = FC_POSTS_RE.exec(location.pathname || '');
+    if (!m) return null;
+    var sp = new URLSearchParams(location.search || '');
+    return {
+      kind: 'post',
+      base: '/fanclubs/' + m[1] + '/posts',
+      tag: sp.get('q[tag]') || '',
+      sort: sp.get('q[s]') || 'newer'
+    };
+  }
+
+  function activeSearchContext() {
+    return fcSearchContext() || fcPostSearchContext();
+  }
+
+  function postListPage() {
+    return FC_POSTS_RE.test(location.pathname || '');
+  }
+
   function fcServerSearchActive() {
     var sp = new URLSearchParams(location.search || '');
+    if (FC_POSTS_RE.test(location.pathname || '')) return !!sp.get('q[tag]');
     return !!(sp.get('q[name_cont]') || sp.get('q[tag]') ||
       sp.get('q[sale_status]') || sp.get('q[sale_type]'));
   }
 
-  // 用站点原生参数提交搜索：q[name_cont] / q[tag] / q[sale_status] /
-  // q[sale_type] / q[s] + 保留当前 product_tab
+  // 用站点原生参数提交搜索：商品走 q[name_cont] / q[tag] / q[sale_status] /
+  // q[sale_type] / q[s] + 保留当前 product_tab；投稿只提交 q[tag] / q[s]
   function fcSubmitSearch() {
-    var ctx = fcSearchContext();
+    var ctx = activeSearchContext();
     if (!ctx) return;
     var sp = new URLSearchParams();
+    if (ctx.kind === 'post') {
+      if (advFields) {
+        var postTag = (advFields.tag.value || '').trim().replace(/^#+/, '').replace(/\s+/g, ' ');
+        if (postTag) sp.set('q[tag]', postTag);
+        sp.set('q[s]', advFields.sort.value || ctx.sort || 'newer');
+      } else {
+        sp.set('q[s]', ctx.sort || 'newer');
+      }
+      location.assign(ctx.base + '?' + sp.toString());
+      return;
+    }
     sp.set('product_tab', ctx.tab);
     var kw = filterInput ? (filterInput.value || '').trim() : '';
     if (kw) sp.set('q[name_cont]', kw);
@@ -1413,15 +1459,17 @@
   }
 
   function fcClearSearch() {
-    var ctx = fcSearchContext();
+    var ctx = activeSearchContext();
     if (!ctx) return;
+    if (ctx.kind === 'post') { location.assign(ctx.base); return; }
     var sp = new URLSearchParams();
     sp.set('product_tab', ctx.tab);
     sp.set('q[s]', ctx.sort || 'newer');
     location.assign(ctx.base + '?' + sp.toString());
   }
 
-  function makeAdvPanel() {
+  function makeAdvPanel(ctx) {
+    var postMode = ctx && ctx.kind === 'post';
     var panel = document.createElement('div');
     panel.className = 'fid-adv';
     var grid = document.createElement('div');
@@ -1455,13 +1503,20 @@
     tag.placeholder = '标签（# 不用写，限 1 个）';
 
     addField('标签', tag);
-    addField('状态', addSelect('status', [
-      ['', '全部'], ['0', '销售中'], ['1', 'COMING SOON'], ['2', '销售结束']
-    ]));
-    addField('商品类型', addSelect('type', [
-      ['', '全部'], ['0', '自宅发货'], ['1', '下载'], ['5', '匿名配送（大和）'],
-      ['10', '抽奖商品'], ['12', '见面会'], ['8', '仓库发货'], ['11', '投稿精选']
-    ]));
+    if (postMode) {
+      var note = document.createElement('p');
+      note.className = 'fid-adv-note';
+      note.textContent = '关键词只筛选当前页；标签与排序提交站点搜索。';
+      grid.appendChild(note);
+    } else {
+      addField('状态', addSelect('status', [
+        ['', '全部'], ['0', '销售中'], ['1', 'COMING SOON'], ['2', '销售结束']
+      ]));
+      addField('商品类型', addSelect('type', [
+        ['', '全部'], ['0', '自宅发货'], ['1', '下载'], ['5', '匿名配送（大和）'],
+        ['10', '抽奖商品'], ['12', '见面会'], ['8', '仓库发货'], ['11', '投稿精选']
+      ]));
+    }
     addField('排序', addSelect('sort', [
       ['newer', '新着顺'], ['updater', '更新顺'], ['popular', '收藏顺']
     ]));
@@ -1477,8 +1532,8 @@
       ev.preventDefault();
       ev.stopPropagation();
       advFields.tag.value = '';
-      advFields.status.value = '';
-      advFields.type.value = '';
+      if (advFields.status) advFields.status.value = '';
+      if (advFields.type) advFields.type.value = '';
       advFields.sort.value = 'newer';
       updateDetailState();
     });
@@ -1500,11 +1555,11 @@
   }
 
   function syncAdvFromUrl() {
-    var ctx = fcSearchContext();
+    var ctx = activeSearchContext();
     if (!ctx || !advFields) return;
-    advFields.tag.value = ctx.tag;
-    advFields.status.value = ctx.saleStatus;
-    advFields.type.value = ctx.saleType;
+    advFields.tag.value = ctx.tag || '';
+    if (advFields.status) advFields.status.value = ctx.saleStatus || '';
+    if (advFields.type) advFields.type.value = ctx.saleType || '';
     advFields.sort.value = ctx.sort || 'newer';
   }
 
@@ -1513,7 +1568,9 @@
     var open = !!(advPanel && advPanel.classList.contains('open'));
     var active = false;
     if (advFields) {
-      active = !!(advFields.tag.value.trim() || advFields.status.value || advFields.type.value);
+      active = !!(advFields.tag.value.trim() ||
+        (advFields.status && advFields.status.value) ||
+        (advFields.type && advFields.type.value));
     }
     filterDetailBtn.classList.toggle('on', open || active);
     filterDetailBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -1604,9 +1661,11 @@
   }
 
   function ensureFilterBar(hasProducts) {
-    var ctx = fcSearchContext();
-    // 没有商品可筛时不要插入空筛选栏（Market 首页/分类页会被顶出一条）
+    var ctx = activeSearchContext();
+    // 没有商品可筛、也不在 FC 商品/投稿列表时不要插入空筛选栏
+    // （Market 首页/分类页会被顶出一条）
     if (!ctx && !hasProducts) { removeFilterBar(); return; }
+    var postMode = !!(ctx && ctx.kind === 'post');
     var anchor = filterAnchor();
     if (!anchor) return;
 
@@ -1642,10 +1701,12 @@
     filterInput = document.createElement('input');
     filterInput.type = 'text';
     filterInput.className = 'filter-input';
-    filterInput.placeholder = ctx
-      ? '搜索本 FC 商品，回车执行 · 输入即筛当前页'
-      : '筛选本页商品：输入 ID 或标题关键词';
-    filterInput.setAttribute('aria-label', ctx ? '搜索本 FC 商品' : '筛选本页商品');
+    filterInput.placeholder = postMode
+      ? '筛选本页投稿：输入帖子 ID 或日期，回车筛选'
+      : (ctx ? '搜索本 FC 商品，回车执行 · 输入 ID/标题即筛当前页'
+             : '筛选本页商品：输入 ID 或标题关键词');
+    filterInput.setAttribute('aria-label',
+      postMode ? '筛选本页投稿' : (ctx ? '搜索本 FC 商品' : '筛选本页商品'));
     if (ctx && ctx.keyword) filterInput.value = ctx.keyword;
 
     filterCount = document.createElement('span');
@@ -1670,9 +1731,10 @@
       }, 150);
     });
     filterInput.addEventListener('keydown', function (ev) {
-      if (ev.key === 'Enter' && fcSearchContext()) {
+      if (ev.key === 'Enter' && ctx) {
         ev.preventDefault();
-        fcSubmitSearch();
+        if (postMode) applyFilterFromInput();   // 投稿关键词没有服务端参数，只筛当前页
+        else fcSubmitSearch();
         return;
       }
       if (ev.key === 'Escape') {
@@ -1690,13 +1752,14 @@
       filterSearchBtn = document.createElement('button');
       filterSearchBtn.type = 'button';
       filterSearchBtn.className = 'fid-filter-btn fid-search-btn';
-      filterSearchBtn.title = '搜索本 FC 商品（回车）';
-      filterSearchBtn.setAttribute('aria-label', '搜索本 FC 商品');
+      filterSearchBtn.title = postMode ? '筛选本页投稿（回车）' : '搜索本 FC 商品（回车）';
+      filterSearchBtn.setAttribute('aria-label', postMode ? '筛选本页投稿' : '搜索本 FC 商品');
       filterSearchBtn.innerHTML = ICON_SEARCH;
       filterSearchBtn.addEventListener('click', function (ev) {
         ev.preventDefault();
         ev.stopPropagation();
-        fcSubmitSearch();
+        if (postMode) applyFilterFromInput();
+        else fcSubmitSearch();
       });
 
       filterDetailBtn = document.createElement('button');
@@ -1713,7 +1776,7 @@
         syncFilterAffix();
       });
 
-      advPanel = makeAdvPanel();
+      advPanel = makeAdvPanel(ctx);
       syncAdvFromUrl();
       bar.appendChild(filterSearchBtn);
       bar.appendChild(filterDetailBtn);
@@ -1754,19 +1817,79 @@
     if (hadServerSearch) fcClearSearch();
   }
 
+  function postCardId(card) {
+    var a = card.querySelector('a[href*="/posts/"]');
+    var m = a && /\/(?:posts)\/(\d+)(?:[/?#]|$)/.exec(a.getAttribute('href') || '');
+    return m ? m[1] : '';
+  }
+
+  // 商品标题只存在于 img[alt] / link-block[title] 里，textContent 拿不到
+  function withCardAttrs(card, text) {
+    var nodes = card.querySelectorAll('img[alt], [title]');
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i].closest && nodes[i].closest('.fantia-id-bar')) continue;
+      var alt = nodes[i].getAttribute('alt');
+      var title = nodes[i].getAttribute('title');
+      if (alt) text += ' ' + alt.toLowerCase();
+      if (title) text += ' ' + title.toLowerCase();
+    }
+    return text;
+  }
+
+  // 过滤时隐藏网格单元而不是卡片本体，否则空列仍占位，命中项不会聚到最前
+  function filterHideTarget(card, isPost) {
+    var el = card;
+    var grid = card.closest ? card.closest('[data-fid-grid]') : null;
+    if (grid && card !== grid) {
+      while (el.parentElement && el.parentElement !== grid) el = el.parentElement;
+      if (el.parentElement !== grid) el = card;
+    } else if (card.parentElement) {
+      var cls = card.parentElement.className;
+      // 未放宽的窄屏同样有 Bootstrap 栅格列，藏列才能让命中项靠前
+      if (typeof cls === 'string' && /(?:^|\s)col-/.test(cls)) el = card.parentElement;
+    }
+    // 一个网格单元里若装着多张卡片，隐藏整格会误伤，退回只隐藏当前卡片
+    if (el !== card) {
+      var sel = isPost ? '.module.post' : '.fantia-id-bar';
+      if (el.querySelectorAll(sel).length > 1) el = card;
+    }
+    return el;
+  }
+
   function applyFilter() {
-    var bars = document.querySelectorAll('.fantia-id-bar');
     hiddenIds = {};
+    if (postListPage()) {
+      var posts = document.querySelectorAll('.module.post');
+      var shown = 0;
+      for (var p = 0; p < posts.length; p++) {
+        var post = posts[p];
+        var item = filterHideTarget(post, true);
+        var pid = postCardId(post);
+        var body = post.querySelector('.post-body');
+        var img = post.querySelector('img[alt]');
+        // 只取日期/描述与图片 alt，避免收藏数、通用 tooltip 干扰筛选
+        var text = ((body ? body.textContent : '') || '').toLowerCase();
+        if (img) text += ' ' + (img.getAttribute('alt') || '').toLowerCase();
+        var hit = !filterQuery || pid.indexOf(filterQuery) >= 0 || text.indexOf(filterQuery) >= 0;
+        var postDisplay = hit ? '' : 'none';
+        if (item.style.display !== postDisplay) item.style.display = postDisplay;
+        if (hit) shown++;
+      }
+      updateFilterCount(shown);
+      return;
+    }
+    var bars = document.querySelectorAll('.fantia-id-bar');
     var visible = 0;
     for (var i = 0; i < bars.length; i++) {
       var bar = bars[i];
       var card = bar.parentNode;
       if (!card) continue;
       var id = bar.getAttribute('data-fantia-product-id') || '';
-      var text = (card.textContent || '').toLowerCase();
+      var text = withCardAttrs(card, (card.textContent || '').toLowerCase());
       var match = !filterQuery || id.indexOf(filterQuery) >= 0 || text.indexOf(filterQuery) >= 0;
+      var target = filterHideTarget(card, false);
       var display = match ? '' : 'none';
-      if (card.style.display !== display) card.style.display = display;
+      if (target.style.display !== display) target.style.display = display;
       if (match) { visible++; } else if (id) { hiddenIds[id] = true; }
     }
     updateFilterCount(visible);
@@ -1774,15 +1897,20 @@
 
   function updateFilterCount(visible) {
     if (!filterCount) return;
-    var total = document.querySelectorAll('.fantia-id-bar').length;
+    var isPost = postListPage();
+    var nodes = isPost ? document.querySelectorAll('.module.post')
+                       : document.querySelectorAll('.fantia-id-bar');
+    var total = nodes.length;
     if (typeof visible !== 'number') {
       visible = 0;
-      var bars = document.querySelectorAll('.fantia-id-bar');
-      for (var i = 0; i < bars.length; i++) {
-        if (bars[i].parentNode && bars[i].parentNode.style.display !== 'none') visible++;
+      for (var i = 0; i < nodes.length; i++) {
+        var card = isPost ? nodes[i] : nodes[i].parentNode;
+        var item = card ? filterHideTarget(card, isPost) : null;
+        if (item && item.style.display !== 'none') visible++;
       }
     }
-    var text = filterQuery ? (visible + ' / ' + total) : (total ? total + ' 个商品' : '');
+    var text = filterQuery ? (visible + ' / ' + total)
+      : (total ? total + (isPost ? ' 个投稿' : ' 个商品') : '');
     if (filterCount.textContent !== text) filterCount.textContent = text;
     if (filterInput) {
       var bar = filterInput.parentNode;
@@ -1834,27 +1962,35 @@
     // Market 有自己的一套居中布局，强行撑宽会把分类区/横幅挤成通栏
     if (/^\/market(?:[/?#]|$)/.test(location.pathname || '')) return;
     var links = collectProductLinks();
-    if (!links.length) return;
+    // 社团投稿列表没有商品链接，但卡片排列与商品页同构，沿用同一套宽屏重排
+    var kind = links.length ? 'product'
+      : (POST_LIST_RE.test(location.pathname || '') ? 'post' : '');
+    if (!kind) return;
+    var cards = [];
+    if (kind === 'product') {
+      for (var i = 0; i < links.length; i++) {
+        var card = resolveCard(links[i].a);
+        if (card) cards.push(card);
+      }
+    } else {
+      var posts = document.querySelectorAll('.module.post');
+      for (var p = 0; p < posts.length; p++) cards.push(posts[p]);
+    }
     var tagged = new Set();   // 元素去重必须用 Set：普通对象会把所有元素并成同一个键
-    for (var i = 0; i < links.length; i++) {
-      var card = resolveCard(links[i].a);
-      if (!card) continue;
-      var el = card.parentElement;
+    for (var ci = 0; ci < cards.length; ci++) {
+      var el = cards[ci].parentElement;
       for (var depth = 0; depth < 6 && el && el !== document.body; depth++) {
         if (tagged.has(el)) break;
         if (el.classList && el.classList.contains('row')) {
           var cols = el.querySelectorAll(':scope > [class*="col-"]');
           var cardCols = 0;
           for (var c = 0; c < cols.length; c++) {
-            var n = 0;
-            var ids = productIdsIn(cols[c]);
-            for (var k in ids) n++;
-            if (n > 0) cardCols++;
+            if (columnHasCard(cols[c], kind)) cardCols++;
           }
           if (cardCols >= 2) {
             el.setAttribute('data-fid-grid', '1');
             tagged.add(el);
-            markSplit(el);
+            markSplit(el, kind);
             break;
           }
         }
@@ -1863,14 +1999,22 @@
     }
   }
 
-  function markSplit(grid) {
+  function columnHasCard(col, kind) {
+    if (kind === 'post') return !!col.querySelector('.module.post');
+    var ids = productIdsIn(col);
+    for (var k in ids) return true;
+    return false;
+  }
+
+  function markSplit(grid, kind) {
     // 两层候选：contentWrap（网格的父层）与其父级 .row
     var wrap = grid.parentElement;
     if (!wrap) return;
     var row = wrap.parentElement;
     if (!row || !row.classList || !row.classList.contains('row') || row.children.length !== 2) return;
     var other = row.children[0] === wrap ? row.children[1] : row.children[0];
-    if (!other || other.querySelector('a[href*="/products/"]')) return; // 兄弟列也含商品就不是侧栏
+    // 兄弟列也含同类卡片就不是侧栏，避免把双栏内容误判成侧栏+内容
+    if (!other || other.querySelector(kind === 'post' ? '.module.post' : 'a[href*="/products/"]')) return;
     row.setAttribute('data-fid-split', '1');
     other.setAttribute('data-fid-side', '1');
     wrap.setAttribute('data-fid-main', '1');
@@ -1961,6 +2105,8 @@
     if (inf.lastUrl && inf.lastUrl !== location.href) cleanupInfiniteScroll();
     var grid = document.querySelector('[data-fid-grid]');
     if (!grid) return;
+    // 投稿网格也带 data-fid-grid，但没有商品 ID；无限滚动目前只做商品卡片
+    if (!collectProductLinks().length) return;
 
     if (inf.observer) {
       if (inf.grid === grid) { ensureSentinel(grid); return; }
