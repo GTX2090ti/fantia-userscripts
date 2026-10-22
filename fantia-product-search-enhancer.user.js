@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Fantia 商品搜索增强 · 商品 ID 快取
 // @namespace    fantia.jp
-// @version      1.4.6
-// @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史，页首筛选框可按 ID 或标题实时过滤卡片；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下自动重排为多列网格（全页型通用）；适配手机触屏（小屏抽屉面板、加大点按目标）；面板内开关可一键切换整站黑暗模式（记忆偏好，全站页面生效）；界面采用 BewlyCat 风格的毛玻璃浮层。
+// @version      1.5.1
+// @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史；页首增强栏可按 ID 或标题实时过滤卡片，FC 商品页还内嵌站点原生关键词搜索与詳細検索（标签/状态/商品类型/排序），并让 FC 标签栏固定、增强搜索栏跟随滚动；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下自动重排为多列网格（全页型通用）；适配手机触屏（小屏抽屉面板、加大点按目标）；面板内开关可一键切换整站黑暗模式（记忆偏好，全站页面生效）；界面采用 BewlyCat 风格的毛玻璃浮层。
 // @author       小蓝
 // @match        https://fantia.jp/*
 // @updateURL    http://192.168.2.210:3100/akinxkk/fantia-userscripts/raw/branch/main/fantia-product-search-enhancer.user.js
@@ -28,9 +28,16 @@
  *          点击条目可再次复制，支持一键清空；
  *    - 复制过的商品，其卡片 ID 条上的按钮会持久显示「已复制」，
  *      悬停按钮可恢复成「复制」以便再次复制。
- * 3. 页首筛选框：自动插入到商品区上方，按商品 ID 或标题关键词实时
- *    过滤本页卡片（隐藏不匹配项并显示命中数），Esc 或 × 一键清空；
- *    筛选生效时悬浮按钮的徽标与「复制全部」都只统计可见卡片。
+ * 3. 页首搜索/筛选栏：自动插入到商品区上方。
+ *    - 任意列表页：按商品 ID 或标题关键词实时过滤本页卡片（隐藏不匹配
+ *      项并显示命中数），Esc 或 × 一键清空；筛选生效时悬浮按钮的徽标
+ *      与「复制全部」都只统计可见卡片。
+ *    - FC 商品页（/fanclubs/<id>/products）：额外提供站点原生搜索——
+ *      关键词提交 q[name_cont]，「詳細検索」面板支持标签 q[tag]、状态
+ *      q[sale_status]、商品类型 q[sale_type]、排序 q[s]，走 Fantia 自己
+ *      的搜索路由；原生的关键词行会被隐藏，避免出现两套搜索框。
+ *    - FC 页面顶部标签栏在滚过后固定在视口顶端；增强搜索栏随滚动吸附
+ *      在标签栏下方（祖先 overflow 会截断 sticky，改用 fixed 层 + 占位槽）。
  * 4. 无限滚动：分页里存在「下一页」时，滚动近底部（提前 1000px 预载）
  *    自动抓取下一页 HTML、抽取商品网格追加到当前页并接龙后续分页；
  *    加载失败或没有更多页时自动停用，原分页链接保留可手动跳页。
@@ -99,6 +106,7 @@
   var ICON_LINK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>';
   var ICON_STACK = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path></svg>';
   var ICON_SEARCH = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>';
+  var ICON_FILTER = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8v6l-4 2v-8Z"></path></svg>';
   var ICON_X = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>';
   var ICON_TRASH = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
   var ICON_HISTORY = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>';
@@ -309,6 +317,25 @@
     'border-radius:12px;background:transparent;box-shadow:none;font:13px/20px var(--fid-font);}',
     '.fantia-filter-bar{display:block;width:100%;margin:0 0 14px;padding:0;border:0;',
     'background:transparent;box-shadow:none;font:13px/20px var(--fid-font);}',
+    // FC 商品页：原生关键词行已并入增强栏，隐藏避免重复（标签页/分页不动）
+    'html.fid-fc-search #fanclubs-products-search .fc-search{display:none!important;}',
+    // FC 商品页：祖先 overflow 会截断 sticky，改为脚本驱动的 fixed 跟随 + 占位槽
+    'html.fid-fc-search .fantia-filter-slot{display:block;width:100%;}',
+    'html.fid-fc-search .fantia-filter-bar.fid-filter-fixed{position:fixed;',
+    'top:var(--fid-nav-h,0px);z-index:1010;margin:0!important;}',
+    'html.fid-fc-search #fanclubs-products-search{scroll-margin-top:calc(var(--fid-nav-h,0px) + 56px);}',
+    // FC 标签栏的原容器很矮，sticky 会被截断；滚动越过原位置后用固定克隆层顶住
+    '.fid-nav-affix{position:fixed;top:0;left:0;right:0;z-index:1020;display:none;',
+    'background:var(--fid-elevated)!important;border-bottom:1px solid var(--fid-border);',
+    'box-shadow:var(--fid-shadow-1);-webkit-backdrop-filter:var(--fid-glass);',
+    'backdrop-filter:var(--fid-glass);}',
+    '.fid-nav-affix.on{display:block;}',
+    '.fid-nav-affix .fanclub-tabs{background:transparent!important;margin:0!important;}',
+    '.fid-nav-affix .scroll-tabs{margin-bottom:0!important;}',
+    '.fid-nav-affix .tab-item{color:var(--fid-text-2)!important;}',
+    '.fid-nav-affix .tab-item.active{color:var(--fid-theme)!important;}',
+    // 站点暗色规则会给带 class 的 div 刷透明底，这里用更高优先级保住毛玻璃底
+    'html.fid-site-dark body div.fid-nav-affix{background:var(--fid-elevated)!important;}',
     '.fantia-panel{position:fixed;right:calc(18px + env(safe-area-inset-right,0px));',
     'bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:2147483000;display:none;',
     'padding:0;border:0;background:transparent;box-shadow:none;}',
@@ -410,14 +437,14 @@
 
   var FILTER_CSS = [
     '.host{display:block;width:100%;}',
-    '.filterbar{display:flex;align-items:center;gap:8px;box-sizing:border-box;width:100%;height:38px;padding:0 12px;',
+    '.filterbar{display:flex;align-items:center;gap:7px;box-sizing:border-box;width:100%;min-height:40px;padding:4px 8px 4px 12px;',
     'background:var(--fid-surface);border:1px solid var(--fid-popover-border);border-radius:12px;',
     'box-shadow:var(--fid-shadow-1),var(--fid-edge-glow);-webkit-backdrop-filter:var(--fid-glass);backdrop-filter:var(--fid-glass);',
     'color:var(--fid-text-2);font:13px/20px var(--fid-font);transition:border-color .15s var(--fid-ease),box-shadow .15s var(--fid-ease);}',
     '.filterbar:focus-within{border-color:var(--fid-theme);box-shadow:0 0 0 3px var(--fid-theme-10),var(--fid-shadow-1);}',
     '.fid-search-icon{flex:none;display:inline-flex;color:var(--fid-text-3);}',
     '.fid-search-icon svg{width:15px;height:15px;display:block;}',
-    '.filter-input{flex:1 1 auto;min-width:0;height:100%;padding:0;border:0;outline:none;background:transparent;',
+    '.filter-input{flex:1 1 auto;min-width:0;height:32px;padding:0;border:0;outline:none;background:transparent;',
     'color:var(--fid-text-1);font:13px/20px var(--fid-font);}',
     '.filter-input::placeholder{color:var(--fid-text-3);}',
     '.filter-count{flex:none;color:var(--fid-text-3);font-size:12px;line-height:20px;',
@@ -428,8 +455,44 @@
     '.filter-clear:hover{background:var(--fid-fill-2);color:var(--fid-text-1);}',
     '.filter-clear svg{width:12px;height:12px;display:block;}',
     '.filterbar.has-query .filter-clear{display:inline-flex;}',
-    '@media (pointer:coarse){.filterbar{height:42px;}}',
-    '@media (prefers-reduced-motion:reduce){.filter-clear{transition:none;}}'
+    '.fid-filter-btn{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:5px;height:30px;padding:0 10px;',
+    'border:0;border-radius:8px;background:var(--fid-fill-1);color:var(--fid-text-2);font:600 12px/1 var(--fid-font);',
+    'cursor:pointer;appearance:none;-webkit-appearance:none;white-space:nowrap;',
+    'transition:background-color .15s var(--fid-ease),color .15s var(--fid-ease),transform .15s var(--fid-ease);}',
+    '.fid-filter-btn:hover{background:var(--fid-fill-2);color:var(--fid-text-1);}',
+    '.fid-filter-btn:active{transform:scale(.96);}',
+    '.fid-filter-btn:focus-visible{outline:2px solid var(--fid-theme-20);outline-offset:2px;}',
+    '.fid-filter-btn svg{width:13px;height:13px;display:block;}',
+    '.fid-search-btn{width:32px;padding:0;background:var(--fid-theme);color:#fff;}',
+    '.fid-search-btn:hover{background:var(--fid-theme);color:#fff;filter:brightness(1.08);}',
+    '.fid-detail-btn.on{background:var(--fid-theme-20);color:var(--fid-theme);}',
+    '.fid-adv{display:none;margin-top:8px;padding:10px 12px 12px;box-sizing:border-box;',
+    'background:var(--fid-surface);border:1px solid var(--fid-popover-border);border-radius:12px;',
+    'box-shadow:var(--fid-shadow-1),var(--fid-edge-glow);-webkit-backdrop-filter:var(--fid-glass);backdrop-filter:var(--fid-glass);}',
+    '.fid-adv.open{display:block;}',
+    '.fid-adv-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;}',
+    '.fid-field{display:flex;flex-direction:column;gap:4px;min-width:0;}',
+    '.fid-field>span{color:var(--fid-text-3);font-size:11px;line-height:16px;letter-spacing:.2px;}',
+    '.fid-field input,.fid-field select{box-sizing:border-box;width:100%;height:32px;padding:0 9px;',
+    'border:1px solid var(--fid-border);border-radius:8px;background:var(--fid-elevated);color:var(--fid-text-1);',
+    'font:12px/1 var(--fid-font);outline:none;appearance:none;-webkit-appearance:none;}',
+    '.fid-field select{padding-right:22px;background-image:linear-gradient(45deg,transparent 50%,var(--fid-text-3) 50%),linear-gradient(135deg,var(--fid-text-3) 50%,transparent 50%);',
+    'background-position:calc(100% - 13px) 13px,calc(100% - 9px) 13px;background-size:4px 4px,4px 4px;background-repeat:no-repeat;}',
+    '.fid-field input:focus,.fid-field select:focus{border-color:var(--fid-theme);box-shadow:0 0 0 3px var(--fid-theme-10);}',
+    '.fid-field input::placeholder{color:var(--fid-text-3);}',
+    '.fid-adv-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:10px;}',
+    '.fid-adv-btn{height:32px;padding:0 16px;border:0;border-radius:8px;font:600 12px/1 var(--fid-font);cursor:pointer;',
+    'appearance:none;-webkit-appearance:none;transition:background-color .15s var(--fid-ease),filter .15s var(--fid-ease);}',
+    '.fid-adv-reset{background:var(--fid-fill-1);color:var(--fid-text-2);}',
+    '.fid-adv-reset:hover{background:var(--fid-fill-2);color:var(--fid-text-1);}',
+    '.fid-adv-go{background:var(--fid-theme);color:#fff;}',
+    '.fid-adv-go:hover{filter:brightness(1.08);}',
+    '@media (pointer:coarse){.filterbar{min-height:44px;}.filter-input{height:34px;}',
+    '.fid-filter-btn{height:32px;}.fid-search-btn{width:34px;}}',
+    '@media (max-width:560px){.filter-count{display:none;}',
+    '.fid-detail-btn span{display:none;}.fid-detail-btn{width:32px;padding:0;}',
+    '.fid-adv-grid{grid-template-columns:1fr;}}',
+    '@media (prefers-reduced-motion:reduce){.filter-clear,.fid-filter-btn,.fid-adv-btn{transition:none;}}'
   ].join('');
 
   var PANEL_CSS = [
@@ -858,6 +921,7 @@
       cleanupInfiniteScroll(); // SPA 跳进详情页时把无限滚动一并收走
       closePanel();
       removeFilterBar();       // SPA 跳进详情页时把筛选框一并收走
+      removeAffixNav();        // SPA 跳进详情页时把固定标签栏一并收走
       updateFab();             // SPA 跳进详情页时把悬浮按钮收走
       return;
     }
@@ -865,6 +929,7 @@
     syncTheme();
     widenLayout();             // 宽屏网格/侧栏重排（运行时结构识别）
     ensureFilterBar();
+    ensureAffixNav();          // FC 标签栏滚动后固定
     setupInfiniteScroll();     // 有下一页时启用自动加载
     var links = collectProductLinks();
     var added = 0;
@@ -1235,14 +1300,26 @@
   }
 
   // --------------------------------------------------------------------- //
-  // 页首筛选框：按商品 ID / 标题关键词实时过滤本页卡片
+  // 页首搜索/筛选栏
+  // - FC 商品页：关键词站内搜索（原生 q[name_cont]）+ 詳細検索
+  //   （标签 / 状态 / 商品类型 / 排序），提交后走站点自身的搜索路由；
+  // - 所有列表页：输入时按商品 ID / 标题实时筛选已加载卡片。
   // --------------------------------------------------------------------- //
+  var FC_PRODUCTS_RE = /^\/fanclubs\/(\d+)\/products(?:\/|$)/;
   var filterHost = null;
   var filterInput = null;
   var filterCount = null;
+  var filterSearchBtn = null;
+  var filterDetailBtn = null;
+  var advPanel = null;
+  var advFields = null;
   var filterQuery = '';
   var hiddenIds = {};
   var filterDebounce = null;
+  var filterUrlKey = '';
+  var filterSlot = null;
+  var filterFixed = false;
+  var filterRo = null;
 
   function filterAnchor() {
     // 优先插到宽屏重排的「侧栏+内容」行之前，其次网格，再退回内容包一层
@@ -1254,24 +1331,262 @@
     return container || null;
   }
 
+  // 当前页是否是 FC 商品列表，并带回原生搜索的现有条件
+  function fcSearchContext() {
+    var m = FC_PRODUCTS_RE.exec(location.pathname || '');
+    if (!m) return null;
+    var sp = new URLSearchParams(location.search || '');
+    return {
+      base: '/fanclubs/' + m[1] + '/products',
+      tab: sp.get('product_tab') || 'all',
+      keyword: sp.get('q[name_cont]') || '',
+      tag: sp.get('q[tag]') || '',
+      saleStatus: sp.get('q[sale_status]') || '',
+      saleType: sp.get('q[sale_type]') || '',
+      sort: sp.get('q[s]') || 'newer'
+    };
+  }
+
+  function fcServerSearchActive() {
+    var sp = new URLSearchParams(location.search || '');
+    return !!(sp.get('q[name_cont]') || sp.get('q[tag]') ||
+      sp.get('q[sale_status]') || sp.get('q[sale_type]'));
+  }
+
+  // 用站点原生参数提交搜索：q[name_cont] / q[tag] / q[sale_status] /
+  // q[sale_type] / q[s] + 保留当前 product_tab
+  function fcSubmitSearch() {
+    var ctx = fcSearchContext();
+    if (!ctx) return;
+    var sp = new URLSearchParams();
+    sp.set('product_tab', ctx.tab);
+    var kw = filterInput ? (filterInput.value || '').trim() : '';
+    if (kw) sp.set('q[name_cont]', kw);
+    if (advFields) {
+      var tag = (advFields.tag.value || '').trim().replace(/^#+/, '').replace(/\s+/g, ' ');
+      if (tag) sp.set('q[tag]', tag);
+      if (advFields.status.value) sp.set('q[sale_status]', advFields.status.value);
+      if (advFields.type.value) sp.set('q[sale_type]', advFields.type.value);
+      sp.set('q[s]', advFields.sort.value || ctx.sort || 'newer');
+    } else {
+      sp.set('q[s]', ctx.sort || 'newer');
+    }
+    location.assign(ctx.base + '?' + sp.toString());
+  }
+
+  function fcClearSearch() {
+    var ctx = fcSearchContext();
+    if (!ctx) return;
+    var sp = new URLSearchParams();
+    sp.set('product_tab', ctx.tab);
+    sp.set('q[s]', ctx.sort || 'newer');
+    location.assign(ctx.base + '?' + sp.toString());
+  }
+
+  function makeAdvPanel() {
+    var panel = document.createElement('div');
+    panel.className = 'fid-adv';
+    var grid = document.createElement('div');
+    grid.className = 'fid-adv-grid';
+    advFields = {};
+
+    function addField(labelText, el) {
+      var label = document.createElement('label');
+      label.className = 'fid-field';
+      var cap = document.createElement('span');
+      cap.textContent = labelText;
+      label.appendChild(cap);
+      label.appendChild(el);
+      grid.appendChild(label);
+    }
+
+    function addSelect(key, options) {
+      var sel = document.createElement('select');
+      for (var i = 0; i < options.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = options[i][0];
+        opt.textContent = options[i][1];
+        sel.appendChild(opt);
+      }
+      advFields[key] = sel;
+      return sel;
+    }
+
+    var tag = document.createElement('input');
+    tag.type = 'text';
+    tag.placeholder = '标签（# 不用写，限 1 个）';
+
+    addField('标签', tag);
+    addField('状态', addSelect('status', [
+      ['', '全部'], ['0', '销售中'], ['1', 'COMING SOON'], ['2', '销售结束']
+    ]));
+    addField('商品类型', addSelect('type', [
+      ['', '全部'], ['0', '自宅发货'], ['1', '下载'], ['5', '匿名配送（大和）'],
+      ['10', '抽奖商品'], ['12', '见面会'], ['8', '仓库发货'], ['11', '投稿精选']
+    ]));
+    addField('排序', addSelect('sort', [
+      ['newer', '新着顺'], ['updater', '更新顺'], ['popular', '收藏顺']
+    ]));
+    advFields.tag = tag;
+
+    var foot = document.createElement('div');
+    foot.className = 'fid-adv-foot';
+    var reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'fid-adv-btn fid-adv-reset';
+    reset.textContent = '清空条件';
+    reset.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      advFields.tag.value = '';
+      advFields.status.value = '';
+      advFields.type.value = '';
+      advFields.sort.value = 'newer';
+      updateDetailState();
+    });
+    var go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'fid-adv-btn fid-adv-go';
+    go.textContent = '搜索';
+    go.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      fcSubmitSearch();
+    });
+    foot.appendChild(reset);
+    foot.appendChild(go);
+
+    panel.appendChild(grid);
+    panel.appendChild(foot);
+    return panel;
+  }
+
+  function syncAdvFromUrl() {
+    var ctx = fcSearchContext();
+    if (!ctx || !advFields) return;
+    advFields.tag.value = ctx.tag;
+    advFields.status.value = ctx.saleStatus;
+    advFields.type.value = ctx.saleType;
+    advFields.sort.value = ctx.sort || 'newer';
+  }
+
+  function updateDetailState() {
+    if (!filterDetailBtn) return;
+    var open = !!(advPanel && advPanel.classList.contains('open'));
+    var active = false;
+    if (advFields) {
+      active = !!(advFields.tag.value.trim() || advFields.status.value || advFields.type.value);
+    }
+    filterDetailBtn.classList.toggle('on', open || active);
+    filterDetailBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  function stashFilterFocus() {
+    try {
+      var root = filterHost && filterHost.shadowRoot;
+      var ae = root && root.activeElement;
+      if (ae && ae.tagName === 'INPUT') {
+        return { el: ae, start: ae.selectionStart, end: ae.selectionEnd };
+      }
+    } catch (e) { /* 忽略 */ }
+    return null;
+  }
+
+  function restoreFilterFocus(snap) {
+    if (!snap || !snap.el) return;
+    try {
+      snap.el.focus({ preventScroll: true });
+      if (snap.start != null) snap.el.setSelectionRange(snap.start, snap.end);
+    } catch (e) { /* 忽略 */ }
+  }
+
+  function setFilterFixed(on) {
+    if (on === filterFixed) return;
+    filterFixed = on;
+    var snap = stashFilterFocus();
+    if (on) {
+      filterHost.classList.add('fid-filter-fixed');
+      document.body.appendChild(filterHost);
+    } else {
+      filterHost.classList.remove('fid-filter-fixed');
+      filterHost.style.left = '';
+      filterHost.style.width = '';
+      filterHost.style.top = '';
+      filterSlot.appendChild(filterHost);
+    }
+    restoreFilterFocus(snap);
+  }
+
+  function syncFilterAffix() {
+    if (!filterHost || !filterSlot || !filterHost.isConnected || !filterSlot.isConnected) return;
+    var fc = false;
+    try { fc = document.documentElement.classList.contains('fid-fc-search'); } catch (e) { /* 忽略 */ }
+    if (!fc) {
+      if (filterFixed) filterSlot.style.height = '';
+      setFilterFixed(false);
+      return;
+    }
+    var navH = 0;
+    try {
+      navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--fid-nav-h')) || 0;
+    } catch (e) { /* 忽略 */ }
+    var slotRect = filterSlot.getBoundingClientRect();
+    var shouldFix = slotRect.top < navH - 0.5;
+    if (shouldFix) {
+      filterSlot.style.height = (filterHost.offsetHeight + 14) + 'px';
+      if (!filterFixed) setFilterFixed(true);
+      filterHost.style.left = slotRect.left + 'px';
+      filterHost.style.width = slotRect.width + 'px';
+      filterHost.style.top = navH + 'px';
+    } else {
+      if (filterFixed) {
+        filterSlot.style.height = '';
+        setFilterFixed(false);
+      }
+    }
+  }
+
   function removeFilterBar() {
+    if (filterRo) { filterRo.disconnect(); filterRo = null; }
+    filterFixed = false;
     if (filterHost && filterHost.parentNode) filterHost.parentNode.removeChild(filterHost);
+    if (filterSlot && filterSlot.parentNode) filterSlot.parentNode.removeChild(filterSlot);
     filterHost = null;
+    filterSlot = null;
     filterInput = null;
     filterCount = null;
+    filterSearchBtn = null;
+    filterDetailBtn = null;
+    advPanel = null;
+    advFields = null;
     filterQuery = '';
     hiddenIds = {};
+    filterUrlKey = '';
+    try { document.documentElement.classList.remove('fid-fc-search'); } catch (e) { /* 忽略 */ }
   }
 
   function ensureFilterBar() {
     var anchor = filterAnchor();
     if (!anchor) return;
+
+    // SPA 跳到别的列表/搜索条件时重建，避免沿用上页的关键词和条件面板
+    var urlKey = location.pathname + location.search;
     if (filterHost && filterHost.isConnected) {
-      if (filterHost.nextElementSibling !== anchor) {
-        anchor.parentNode.insertBefore(filterHost, anchor);
+      if (filterUrlKey === urlKey) {
+        if (filterSlot && filterSlot.nextElementSibling !== anchor) {
+          anchor.parentNode.insertBefore(filterSlot, anchor);
+        }
+        syncFilterAffix();
+        return;
       }
-      return;
+      removeFilterBar();
     }
+
+    filterUrlKey = urlKey;
+    var ctx = fcSearchContext();
+
+    filterSlot = document.createElement('div');
+    filterSlot.className = 'fantia-filter-slot';
     filterHost = document.createElement('div');
     filterHost.className = 'fantia-filter-bar';
     clearHostBackground(filterHost);
@@ -1287,8 +1602,11 @@
     filterInput = document.createElement('input');
     filterInput.type = 'text';
     filterInput.className = 'filter-input';
-    filterInput.placeholder = '筛选本页商品：输入 ID 或标题关键词';
-    filterInput.setAttribute('aria-label', '筛选本页商品');
+    filterInput.placeholder = ctx
+      ? '搜索本 FC 商品，回车执行 · 输入即筛当前页'
+      : '筛选本页商品：输入 ID 或标题关键词';
+    filterInput.setAttribute('aria-label', ctx ? '搜索本 FC 商品' : '筛选本页商品');
+    if (ctx && ctx.keyword) filterInput.value = ctx.keyword;
 
     filterCount = document.createElement('span');
     filterCount.className = 'filter-count';
@@ -1296,7 +1614,7 @@
     var clear = document.createElement('button');
     clear.type = 'button';
     clear.className = 'filter-clear';
-    clear.setAttribute('aria-label', '清空筛选');
+    clear.setAttribute('aria-label', '清空筛选与搜索');
     clear.innerHTML = ICON_X;
     clear.addEventListener('click', function (ev) {
       ev.preventDefault();
@@ -1312,6 +1630,11 @@
       }, 150);
     });
     filterInput.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' && fcSearchContext()) {
+        ev.preventDefault();
+        fcSubmitSearch();
+        return;
+      }
       if (ev.key === 'Escape') {
         ev.preventDefault();
         clearFilter();
@@ -1322,14 +1645,58 @@
     bar.appendChild(filterInput);
     bar.appendChild(filterCount);
     bar.appendChild(clear);
-    root.appendChild(bar);
-    anchor.parentNode.insertBefore(filterHost, anchor);
 
+    if (ctx) {
+      filterSearchBtn = document.createElement('button');
+      filterSearchBtn.type = 'button';
+      filterSearchBtn.className = 'fid-filter-btn fid-search-btn';
+      filterSearchBtn.title = '搜索本 FC 商品（回车）';
+      filterSearchBtn.setAttribute('aria-label', '搜索本 FC 商品');
+      filterSearchBtn.innerHTML = ICON_SEARCH;
+      filterSearchBtn.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        fcSubmitSearch();
+      });
+
+      filterDetailBtn = document.createElement('button');
+      filterDetailBtn.type = 'button';
+      filterDetailBtn.className = 'fid-filter-btn fid-detail-btn';
+      filterDetailBtn.setAttribute('aria-expanded', 'false');
+      filterDetailBtn.innerHTML = ICON_FILTER + '<span>詳細検索</span>';
+      filterDetailBtn.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (!advPanel) return;
+        advPanel.classList.toggle('open');
+        updateDetailState();
+        syncFilterAffix();
+      });
+
+      advPanel = makeAdvPanel();
+      syncAdvFromUrl();
+      bar.appendChild(filterSearchBtn);
+      bar.appendChild(filterDetailBtn);
+    }
+
+    root.appendChild(bar);
+    if (advPanel) root.appendChild(advPanel);
+    filterSlot.appendChild(filterHost);
+    anchor.parentNode.insertBefore(filterSlot, anchor);
+    document.documentElement.classList.toggle('fid-fc-search', !!ctx);
+
+    if (typeof ResizeObserver !== 'undefined') {
+      filterRo = new ResizeObserver(function () { syncFilterAffix(); });
+      filterRo.observe(filterHost);
+    }
+
+    updateDetailState();
     if (filterQuery) {
       filterInput.value = filterQuery;
       applyFilter();
     }
     updateFilterCount();
+    syncFilterAffix();
   }
 
   function applyFilterFromInput() {
@@ -1339,10 +1706,12 @@
   }
 
   function clearFilter() {
+    var hadServerSearch = fcServerSearchActive();
     if (filterInput) filterInput.value = '';
     filterQuery = '';
     applyFilter();
     updateFab();
+    if (hadServerSearch) fcClearSearch();
   }
 
   function applyFilter() {
@@ -1377,8 +1746,103 @@
     if (filterCount.textContent !== text) filterCount.textContent = text;
     if (filterInput) {
       var bar = filterInput.parentNode;
-      if (bar) bar.classList.toggle('has-query', !!filterQuery);
+      if (bar) bar.classList.toggle('has-query', !!filterQuery || fcServerSearchActive());
     }
+  }
+
+  // --------------------------------------------------------------------- //
+  // FC 标签栏固定
+  // 原 nav 位于高度有限的 fanclub-show-header 内，直接 sticky 会在父容器
+  // 结束处被截断；因此滚动越过原位置后展示一个 fixed 克隆层，原 nav 留在
+  // 文档流里保证布局不变。增强搜索栏的祖先带 overflow，sticky 会被截断，
+  // 因此由 JS 切换 fixed 并用占位槽顶住高度。
+  // --------------------------------------------------------------------- //
+  var affixHost = null;
+  var affixSource = null;
+  var affixUrlKey = '';
+  var affixHeight = 0;
+  var affixSyncArrows = null;
+
+  function removeAffixNav() {
+    if (affixHost && affixHost.parentNode) affixHost.parentNode.removeChild(affixHost);
+    affixHost = null;
+    affixSource = null;
+    affixUrlKey = '';
+    affixHeight = 0;
+    affixSyncArrows = null;
+    try { document.documentElement.style.removeProperty('--fid-nav-h'); } catch (e) { /* 忽略 */ }
+  }
+
+  function syncAffixNav() {
+    if (!affixHost || !affixSource) return;
+    if (!affixSource.isConnected) { removeAffixNav(); return; }
+    var rect = affixSource.getBoundingClientRect();
+    var h = Math.round(rect.height);
+    if (h > 0 && h !== affixHeight) {
+      affixHeight = h;
+      try { document.documentElement.style.setProperty('--fid-nav-h', h + 'px'); } catch (e) { /* 忽略 */ }
+    }
+    var on = rect.top <= 0.5;
+    var wasOn = affixHost.classList.contains('on');
+    if (on !== wasOn) {
+      affixHost.classList.toggle('on', on);
+      // 克隆层 display:none 时量不到宽度，显示后再判断左右箭头是否该露出
+      if (on && affixSyncArrows) affixSyncArrows();
+    }
+  }
+
+  function ensureAffixNav() {
+    if (!shouldRun()) { removeAffixNav(); return; }
+    var src = document.querySelector('.fanclub-tabs.js-affix-nav') ||
+              document.querySelector('nav.scroll-tabs');
+    if (!src) { removeAffixNav(); return; }
+    var key = location.pathname;
+    if (affixHost && affixHost.isConnected && affixUrlKey === key && affixSource === src) {
+      syncAffixNav();
+      return;
+    }
+    removeAffixNav();
+    affixSource = src;
+    affixUrlKey = key;
+    affixHost = document.createElement('div');
+    affixHost.className = 'fid-nav-affix';
+    var clone = src.cloneNode(true);
+    clone.classList.remove('js-affix-nav');
+    clone.removeAttribute('id');
+    affixHost.appendChild(clone);
+    var main = clone.querySelector('.scroll-tabs-main');
+    var arrows = clone.querySelectorAll('.scroll-tab-arrow');
+    if (main && arrows.length) {
+      var syncArrows = function () {
+        var left = clone.querySelector('.scroll-tab-arrow-left');
+        var right = clone.querySelector('.scroll-tab-arrow-right');
+        if (left) left.classList.toggle('is-hide', main.scrollLeft <= 1);
+        if (right) {
+          right.classList.toggle('is-hide',
+            main.scrollLeft + main.clientWidth >= main.scrollWidth - 1);
+        }
+      };
+      affixSyncArrows = syncArrows;
+      for (var i = 0; i < arrows.length; i++) {
+        (function (btn) {
+          btn.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            var dir = btn.classList.contains('scroll-tab-arrow-left') ? -1 : 1;
+            main.scrollLeft += dir * Math.max(120, Math.round(main.clientWidth * 0.6));
+            syncArrows();
+          });
+        })(arrows[i]);
+      }
+      main.addEventListener('scroll', syncArrows, { passive: true });
+      syncArrows();
+    }
+    document.body.appendChild(affixHost);
+    try {
+      var h = Math.round(src.getBoundingClientRect().height) || 52;
+      affixHeight = h;
+      document.documentElement.style.setProperty('--fid-nav-h', h + 'px');
+    } catch (e) { /* 忽略 */ }
+    syncAffixNav();
   }
 
   // --------------------------------------------------------------------- //
@@ -1645,6 +2109,33 @@
     }
 
     setInterval(scan, 1500);  // 轮询兜底：覆盖懒加载/分页/框架替换
+
+    var affixRaf = null;
+    function syncAnchors() {
+      syncAffixNav();
+      syncFilterAffix();
+    }
+    window.addEventListener('scroll', function () {
+      if (affixRaf) return;
+      affixRaf = requestAnimationFrame(function () {
+        affixRaf = null;
+        syncAnchors();
+      });
+    }, { passive: true });
+    window.addEventListener('resize', function () {
+      syncAnchors();
+      if (affixSyncArrows) affixSyncArrows();
+    });
+
+    // 点空白处收起詳細検索面板（Shadow DOM 内部点击不算）
+    document.addEventListener('click', function (ev) {
+      if (!advPanel || !advPanel.classList.contains('open')) return;
+      var path = ev.composedPath ? ev.composedPath() : [];
+      if (filterHost && path.indexOf(filterHost) >= 0) return;
+      advPanel.classList.remove('open');
+      updateDetailState();
+      syncFilterAffix();
+    }, true);
 
     window.addEventListener('popstate', function () { setTimeout(scan, 300); });
     document.addEventListener('turbo:load', scan);        // Turbo
