@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Fantia 商品搜索增强 · 商品 ID 快取
 // @namespace    fantia.jp
-// @version      1.4.5
+// @version      1.4.6
 // @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史，页首筛选框可按 ID 或标题实时过滤卡片；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下自动重排为多列网格（全页型通用）；适配手机触屏（小屏抽屉面板、加大点按目标）；面板内开关可一键切换整站黑暗模式（记忆偏好，全站页面生效）；界面采用 BewlyCat 风格的毛玻璃浮层。
 // @author       小蓝
 // @match        https://fantia.jp/*
-// @updateURL    https://gitea.51370.xyz:7999/akinxkk/fantia-userscripts/raw/branch/main/fantia-product-search-enhancer.user.js
-// @downloadURL  https://gitea.51370.xyz:7999/akinxkk/fantia-userscripts/raw/branch/main/fantia-product-search-enhancer.user.js
+// @updateURL    http://192.168.2.210:3100/akinxkk/fantia-userscripts/raw/branch/main/fantia-product-search-enhancer.user.js
+// @downloadURL  http://192.168.2.210:3100/akinxkk/fantia-userscripts/raw/branch/main/fantia-product-search-enhancer.user.js
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==

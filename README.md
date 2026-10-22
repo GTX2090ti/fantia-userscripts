@@ -4,16 +4,19 @@
 
 ## 安装
 
-1. 浏览器装好 Tampermonkey（或 Violentmonkey）
+1. 浏览器装好 ScriptCat（或 Tampermonkey / Violentmonkey）
 2. 打开安装地址，点「安装」：
 
 ```
-https://gitea.51370.xyz:7999/akinxkk/fantia-userscripts/raw/branch/main/fantia-product-search-enhancer.user.js
+http://192.168.2.210:3100/akinxkk/fantia-userscripts/raw/branch/main/fantia-product-search-enhancer.user.js
 ```
+
+> 公网反代 `gitea.51370.xyz:7999` 当前不可达，脚本的 `@updateURL` / `@downloadURL`
+> 已改为内网地址；在内网打开上面的地址重装一次即可恢复自动更新。
 
 ## 脚本清单
 
-### `fantia-product-search-enhancer.user.js` · Fantia 商品搜索增强（v1.4.5）
+### `fantia-product-search-enhancer.user.js` · Fantia 商品搜索增强（v1.4.6）
 
 - 商品搜索/列表页：每张商品卡片的图片与介绍下方注入 `商品 ID <数字>` + 「复制」按钮，一键复制链接尾部数字；复制过的卡片持久标记「已复制」，悬停按钮可恢复「复制」便于重拷
 - 页首筛选框：按商品 ID 或标题关键词实时过滤本页卡片（防抖 150ms，Esc 或 × 清空），显示命中数
@@ -30,10 +33,11 @@ https://gitea.51370.xyz:7999/akinxkk/fantia-userscripts/raw/branch/main/fantia-p
 
 ## 自动更新
 
-脚本头部已配置 `@updateURL` / `@downloadURL` 指向本仓库 raw 地址，
-脚本管理器会按版本号自动检查更新（需可达 `gitea.51370.xyz:7999`，公网反代或内网均可）。
+脚本头部已配置 `@updateURL` / `@downloadURL` 指向本仓库内网 raw 地址
+（`http://192.168.2.210:3100`），ScriptCat 会按版本号自动检查更新，需与 NAS 在同一内网。
+公网反代 `gitea.51370.xyz:7999` 当前不可达；恢复后可把这两个地址改回公网并重装一次。
 
 ## 环境
 
 - Gitea：`https://gitea.51370.xyz:7999`（NAS 192.168.2.210 容器 gitea，公网 HTTPS 反代；内网 `http://192.168.2.210:3100`）
-- 公网 HTTPS 反代直达；内网也可走 `http://192.168.2.210:3100`
+- 公网 HTTPS 反代 `gitea.51370.xyz:7999` 当前不可达；内网走 `http://192.168.2.210:3100`
