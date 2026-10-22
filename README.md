@@ -1,6 +1,6 @@
 # Fantia 增强油猴脚本
 
-托管在 GitHub 的油猴脚本集合，直接在 ScriptCat / Tampermonkey / Violentmonkey 里用链接安装。
+托管在 GitHub 的油猴脚本，直接在 ScriptCat / Tampermonkey / Violentmonkey 里用链接安装。
 
 ## 安装
 
