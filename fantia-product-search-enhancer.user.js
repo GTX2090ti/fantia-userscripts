@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Fantia 商品搜索增强 · 商品 ID 快取
 // @namespace    fantia.jp
-// @version      1.5.6
-// @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史；页首增强栏可按 ID 或标题实时过滤卡片，FC 商品页还内嵌站点原生关键词搜索与詳細検索（标签/状态/商品类型/排序），FC 投稿页提供同款增强栏（关键词本地筛当前页、标签/排序走站点搜索），标签栏沿用站点原生吸顶、增强搜索栏跟随滚动；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下识别到商品/投稿网格时自动重排为多列网格，社团投稿列表与商品列表使用同一套布局，Market 保持站点原生居中布局；适配手机触屏（小屏抽屉面板、加大点按目标）；面板内开关可一键切换整站黑暗模式（记忆偏好，全站页面生效）；界面采用 BewlyCat 风格的毛玻璃浮层。
+// @version      1.6.0
+// @description 在 Fantia 商品搜索/列表页，为每个商品卡片注入商品 ID（链接尾部数字）和一键复制按钮，悬浮面板支持复制本页全部 ID、查看/清空复制历史；页首增强栏可按 ID 或标题实时过滤卡片，FC 商品页还内嵌站点原生关键词搜索与詳細検索（标签/状态/商品类型/排序），FC 投稿页提供同款增强栏（关键词本地筛当前页、标签/排序走站点搜索），标签栏沿用站点原生吸顶、增强搜索栏跟随滚动；复制过的卡片自动标记「已复制」；有下一页时滚动近底部自动加载追加；宽屏下识别到商品/投稿网格时自动重排为多列网格，社团投稿列表与商品列表使用同一套布局，Market 保持站点原生居中布局；适配手机触屏（小屏抽屉面板、加大点按目标）；面板内开关可一键切换整站黑暗模式（记忆偏好，全站页面生效）；界面采用 BewlyCat 风格的毛玻璃浮层。社团投稿列表（/fanclubs/<id>/posts）同样生效：每张投稿卡片注入投稿 ID 复制条，悬浮面板可复制本页全部投稿 ID，滚动近底部自动加载下一页投稿。
 // @author       小蓝
 // @match        https://fantia.jp/*
 // @updateURL    https://raw.githubusercontent.com/GTX2090ti/fantia-userscripts/main/fantia-product-search-enhancer.user.js
@@ -103,11 +103,21 @@
 
   // 商品链接：兼容绝对/相对地址，允许 /products/<id> 后带 slug 或参数
   var PRODUCT_HREF_RE = /\/products\/(\d+)(?:[/?#]|$)/;
+  var POST_HREF_RE = /\/posts\/(\d+)(?:[/?#]|$)/;
   var DETAIL_PAGE_RE = /^\/products\/\d+(?:[/?#]|$)/;
   var POST_PAGE_RE = /^\/posts\/\d+(?:[/?#]|$)/;
   var POST_LIST_RE = /^\/fanclubs\/\d+\/posts(?:[/?#]|$)/;
   // 只在这些列表/搜索类页面生效；商品详情页、帖子详情页不注入
   var PAGE_RE = /^\/(?:fanclubs|products|market|ranking|search)(?:[/?#]|$)/;
+
+  // 当前页的条目类型：社团投稿列表为 'post'，其余商品/搜索类列表为 'product'
+  function itemKind() {
+    return POST_LIST_RE.test(location.pathname || '') ? 'post' : 'product';
+  }
+
+  function kindLabel(kind) {
+    return kind === 'post' ? '投稿' : '商品';
+  }
 
   var ICON_CLIP = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path></svg>';
   var ICON_CHECK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>';
@@ -316,6 +326,10 @@
     'width:calc(100% - 16px);min-width:0;margin:8px;padding:0;border:0;border-radius:10px;',
     'background:transparent;box-shadow:none;text-align:left;text-decoration:none;',
     'font:12px/18px var(--fid-font);}',
+    // 投稿卡片整卡被绝对定位的 a.link-block 覆盖，条若只能落在卡片内需抬高层级
+    '.module.post > .fantia-id-bar{position:relative;z-index:10;}',
+    // 投稿列表的条挂在栅格列内（卡片下方），去掉列底部多余留白
+    '.module.post + .fantia-id-bar{margin-top:0;}',
     '.fantia-fab{position:fixed;right:calc(18px + env(safe-area-inset-right,0px));',
     'bottom:calc(18px + env(safe-area-inset-bottom,0px));display:block;width:48px;height:48px;',
     'padding:0;border:0;border-radius:999px;background:transparent;box-shadow:none;',
@@ -668,6 +682,11 @@
     return m ? m[1] : '';
   }
 
+  function postIdFromHref(href) {
+    var m = POST_HREF_RE.exec(href || '');
+    return m ? m[1] : '';
+  }
+
   function collectProductLinks() {
     var out = [];
     var anchors = document.querySelectorAll('a[href*="/products/"]');
@@ -678,15 +697,46 @@
     return out;
   }
 
+  // 投稿卡片 ID：优先卡片内 /posts/<n> 链接（.link-block 覆盖层就是它），
+  // 退化到收藏按钮 data-post_id —— 锁定/未公开卡片可能没有可读链接
+  function postIdIn(card) {
+    var a = card.querySelector ? card.querySelector('a[href*="/posts/"]') : null;
+    var id = a ? postIdFromHref(a.getAttribute('href') || '') : '';
+    if (id) return id;
+    var holder = card.querySelector ? card.querySelector('[data-post_id]') : null;
+    return holder ? String(holder.getAttribute('data-post_id') || '') : '';
+  }
+
+  // 投稿列表用「卡片」而非链接做锚点：整卡可点、一张卡片只该有一条 ID 条
+  function collectPostCards() {
+    var out = [];
+    var cards = document.querySelectorAll('.module.post');
+    for (var i = 0; i < cards.length; i++) {
+      var id = postIdIn(cards[i]);
+      if (id) out.push({ card: cards[i], id: id });
+    }
+    return out;
+  }
+
+  // 统一取当前页条目：{id} 列表，商品取链接，投稿取卡片
+  function collectItems(kind) {
+    kind = kind || itemKind();
+    if (kind === 'post') return collectPostCards();
+    var links = collectProductLinks();
+    var out = [];
+    for (var i = 0; i < links.length; i++) out.push({ a: links[i].a, id: links[i].id });
+    return out;
+  }
+
   function uniqueIds(visibleOnly) {
     var seen = {};
     var ids = [];
-    var links = collectProductLinks();
-    for (var i = 0; i < links.length; i++) {
-      if (visibleOnly && hiddenIds[links[i].id]) continue;
-      if (!seen[links[i].id]) {
-        seen[links[i].id] = true;
-        ids.push(links[i].id);
+    var items = collectItems();
+    for (var i = 0; i < items.length; i++) {
+      if (visibleOnly && hiddenIds[items[i].id]) continue;
+      if (!seen[items[i].id]) {
+        seen[items[i].id] = true;
+        ids.push(items[i].id);
       }
     }
     return ids;
@@ -714,25 +764,28 @@
     } catch (e) { /* 隐私模式 / 容量不足时静默 */ }
   }
 
-  function historyHas(id) {
+  // 历史按「类型 + ID」区分：商品 ID 与投稿 ID 都是纯数字，可能撞号
+  function historyHas(id, kind) {
+    var k = kind || itemKind();
     var h = loadHistory();
     for (var i = 0; i < h.length; i++) {
-      if (h[i] && h[i].id === id) return true;
+      if (h[i] && h[i].id === id && (h[i].k || 'product') === k) return true;
     }
     return false;
   }
 
-  function recordIds(ids) {
+  function recordIds(ids, kind) {
     var h = loadHistory();
+    var k = kind || itemKind();
     var now = Date.now();
     var changed = false;
     for (var i = 0; i < ids.length; i++) {
       var id = String(ids[i] || '');
       if (!id) continue;
       for (var j = 0; j < h.length; j++) {
-        if (h[j] && h[j].id === id) { h.splice(j, 1); break; }
+        if (h[j] && h[j].id === id && (h[j].k || 'product') === k) { h.splice(j, 1); break; }
       }
-      h.unshift({ id: id, t: now });
+      h.unshift({ id: id, t: now, k: k });
       changed = true;
     }
     if (changed) {
@@ -809,10 +862,12 @@
   // --------------------------------------------------------------------- //
   // 注入 ID 条
   // --------------------------------------------------------------------- //
-  function makeBar(id) {
+  function makeBar(id, kind) {
+    kind = kind || 'product';
     var bar = document.createElement('div');
     bar.className = 'fantia-id-bar';
     bar.setAttribute('data-fantia-product-id', id);
+    bar.setAttribute('data-fantia-kind', kind);
     clearHostBackground(bar);
     var root = attachShadowCss(bar, 'bar', BAR_CSS);
 
@@ -825,7 +880,7 @@
 
     var label = document.createElement('span');
     label.className = 'fid-label';
-    label.textContent = '商品 ID';
+    label.textContent = kindLabel(kind) + ' ID';
 
     var num = document.createElement('span');
     num.className = 'fid-num';
@@ -835,20 +890,21 @@
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'fantia-id-btn';
-    btn.setAttribute('aria-label', '复制商品 ID');
+    btn.setAttribute('aria-label', '复制' + kindLabel(kind) + ' ID');
     btn.innerHTML = ICON_CLIP + '<span class="btn-text">复制</span>';
 
     btn.addEventListener('click', function (ev) {
       ev.preventDefault();
       ev.stopPropagation();
       // 徽标/数字可能在 SPA 复用卡片时更新，复制时以条上的当前 ID 为准
-      var current = bar.getAttribute('data-fantia-product-id') || '';
+      var current = barId(bar);
       if (!current) return;
+      var k = barKind(bar);
       copyText(current).then(function (ok) {
         flashButton(btn, ok, bar);
         if (ok) {
-          recordIds([current]);
-          toast('已复制商品 ID：' + current, false);
+          recordIds([current], k);
+          toast('已复制' + kindLabel(k) + ' ID：' + current, false);
         } else {
           toast('复制失败，请双击数字手动复制', true);
         }
@@ -865,7 +921,7 @@
     });
     btn.addEventListener('mouseleave', function () {
       if (btn.__fidTimer) return;
-      applyBtnState(btn, bar.getAttribute('data-fantia-product-id') || '');
+      applyBtnState(btn, barId(bar), barKind(bar));
     });
 
     // 卡片整体常是 <a>（Fantia 现行布局）：条内任何点击都不应触发卡片跳转
@@ -897,9 +953,18 @@
   }
 
   // 按钮按历史状态渲染：已复制过的显示「已复制」，否则显示「复制」
-  function applyBtnState(btn, id) {
+  // 条上的 ID / 类型：属性名沿用商品时代的命名（历史兼容），实际承载当前条目的 ID
+  function barId(bar) {
+    return (bar && bar.getAttribute('data-fantia-product-id')) || '';
+  }
+
+  function barKind(bar) {
+    return (bar && bar.getAttribute('data-fantia-kind')) || 'product';
+  }
+
+  function applyBtnState(btn, id, kind) {
     if (btn.__fidTimer) return;
-    var done = id && historyHas(id);
+    var done = id && historyHas(id, kind);
     btn.classList.toggle('done', !!done);
     btn.innerHTML = (done ? ICON_CHECK : ICON_CLIP) +
       '<span class="btn-text">' + (done ? '已复制' : '复制') + '</span>';
@@ -908,9 +973,9 @@
   function refreshBarStates() {
     var bars = document.querySelectorAll('.fantia-id-bar');
     for (var i = 0; i < bars.length; i++) {
-      var id = bars[i].getAttribute('data-fantia-product-id') || '';
+      var id = barId(bars[i]);
       var btn = bars[i].shadowRoot && bars[i].shadowRoot.querySelector('.fantia-id-btn');
-      if (id && btn) applyBtnState(btn, id);
+      if (id && btn) applyBtnState(btn, id, barKind(bars[i]));
     }
   }
 
@@ -925,18 +990,23 @@
       btn.disabled = false;
       btn.classList.remove('ok', 'err');
       btn.__fidTimer = null;
-      applyBtnState(btn, bar ? (bar.getAttribute('data-fantia-product-id') || '') : '');
+      applyBtnState(btn, barId(bar), barKind(bar));
     }, 1500);
   }
 
-  function updateBar(bar, id) {
+  function updateBar(bar, id, kind) {
     bar.setAttribute('data-fantia-product-id', id);
+    bar.setAttribute('data-fantia-kind', kind || 'product');
     var root = bar.shadowRoot;
     if (!root) return;
     var num = root.querySelector('.fid-num');
     if (num && num.textContent !== id) num.textContent = id;
+    var label = root.querySelector('.fid-label');
+    if (label && label.textContent !== kindLabel(kind) + ' ID') {
+      label.textContent = kindLabel(kind) + ' ID';
+    }
     var btn = root.querySelector('.fantia-id-btn');
-    if (btn) applyBtnState(btn, id);
+    if (btn) applyBtnState(btn, id, kind || 'product');
   }
 
   function scan() {
@@ -953,10 +1023,22 @@
     syncTheme();
     widenLayout();             // 宽屏网格/侧栏重排（运行时结构识别）
     syncPageMode();            // 标记网格后再决定是否放宽容器
+    var kind = itemKind();
     var links = collectProductLinks();
-    ensureFilterBar(links.length > 0);
+    ensureFilterBar(links.length > 0 || kind === 'post');
     ensureNavOffset();         // 量 FC 标签栏高度（站点自身负责吸顶）
     setupInfiniteScroll();     // 有下一页时启用自动加载
+    var added = kind === 'post' ? scanPostCards() : scanProductCards(links);
+    if (added) {
+      dbg('本轮新注入 ' + added + ' 个 ID 条，累计' + kindLabel(kind) + ' ' + uniqueIds().length + ' 个');
+    }
+    if (filterQuery) applyFilter();   // SPA/分页新渲染的卡片也要套用当前筛选
+    updateFab();
+    updateFilterCount();              // 无限滚动追加后保持计数最新
+  }
+
+  // 商品列表：以商品链接为锚点，向上解析卡片，条挂在卡片末尾
+  function scanProductCards(links) {
     var added = 0;
     var cleanedScopes = new Set();
     for (var i = 0; i < links.length; i++) {
@@ -994,20 +1076,50 @@
       if (!bar && scope) bar = scope.querySelector('.fantia-id-bar');
 
       if (bar) {
-        if (bar.getAttribute('data-fantia-product-id') !== canonical) updateBar(bar, canonical);
+        if (barId(bar) !== canonical || barKind(bar) !== 'product') updateBar(bar, canonical, 'product');
         if (bar.parentNode === card) card.__fidBar = bar;
         continue;
       }
 
-      bar = makeBar(canonical);
+      bar = makeBar(canonical, 'product');
       card.appendChild(bar);
       card.__fidBar = bar;
       added++;
     }
-    if (added) dbg('本轮新注入 ' + added + ' 个 ID 条，累计商品 ' + uniqueIds().length + ' 个');
-    if (filterQuery) applyFilter();   // SPA/分页新渲染的卡片也要套用当前筛选
-    updateFab();
-    updateFilterCount();              // 无限滚动追加后保持计数最新
+    return added;
+  }
+
+  // 投稿卡片整卡被绝对定位的 <a class="link-block"> 覆盖（点击任意处进详情），
+  // 条挂在栅格列里（卡片正下方）既避开覆盖层又不会随卡片固定高度被裁掉
+  function postBarHost(card) {
+    var col = card.parentElement;
+    if (col && /(?:^|\s)col-/.test(String(col.className || ''))) return col;
+    return card;
+  }
+
+  function scanPostCards() {
+    var items = collectPostCards();
+    var added = 0;
+    for (var i = 0; i < items.length; i++) {
+      var card = items[i].card;
+      var id = items[i].id;
+      var host = postBarHost(card);
+      var bar = card.__fidBar;
+      if (bar && bar.parentNode !== host) bar = null;
+      if (!bar && host.querySelector) bar = host.querySelector('.fantia-id-bar');
+
+      if (bar) {
+        if (barId(bar) !== id || barKind(bar) !== 'post') updateBar(bar, id, 'post');
+        card.__fidBar = bar;
+        continue;
+      }
+
+      bar = makeBar(id, 'post');
+      host.appendChild(bar);
+      card.__fidBar = bar;
+      added++;
+    }
+    return added;
   }
 
   // --------------------------------------------------------------------- //
@@ -1076,14 +1188,14 @@
     if (fab || !document.body) return;
     fab = document.createElement('div');
     fab.className = 'fantia-fab';
-    fab.title = '商品 ID 面板';
+    fab.title = 'ID 面板（商品 / 投稿）';
     clearHostBackground(fab);
     var root = attachShadowCss(fab, 'fab', FAB_CSS);
 
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'fab';
-    btn.setAttribute('aria-label', '打开商品 ID 面板');
+    btn.setAttribute('aria-label', '打开 ID 面板');
     btn.innerHTML = ICON_STACK;
     fabBadge = document.createElement('span');
     fabBadge.className = 'fab-badge';
@@ -1119,6 +1231,7 @@
   // 悬浮面板：复制本页全部 + 复制历史（查看 / 再复制 / 清空）
   // --------------------------------------------------------------------- //
   var panelHost = null;
+  var panelTitle = null;
   var panelCopyAllBtn = null;
   var panelHistHead = null;
   var panelHistList = null;
@@ -1154,15 +1267,17 @@
   }
 
   function copyAllVisible() {
+    var kind = itemKind();
+    var label = kindLabel(kind);
     var ids = uniqueIds(!!filterQuery);
     if (!ids.length) {
-      toast(filterQuery ? '筛选结果里没有商品' : '本页没有识别到商品', true);
+      toast(filterQuery ? '筛选结果里没有' + label : '本页没有识别到' + label, true);
       return;
     }
     copyText(ids.join('\n')).then(function (ok) {
       if (ok) {
-        recordIds(ids);
-        toast('已复制 ' + ids.length + ' 个商品 ID' + (filterQuery ? '（筛选后）' : ''));
+        recordIds(ids, kind);
+        toast('已复制 ' + ids.length + ' 个' + label + ' ID' + (filterQuery ? '（筛选后）' : ''));
       } else {
         toast('复制失败', true);
       }
@@ -1179,9 +1294,9 @@
     var panel = document.createElement('div');
     panel.className = 'panel';
 
-    var title = document.createElement('div');
-    title.className = 'panel-title';
-    title.innerHTML = ICON_HISTORY + '<span>商品 ID 面板</span>';
+    panelTitle = document.createElement('div');
+    panelTitle.className = 'panel-title';
+    panelTitle.innerHTML = ICON_HISTORY + '<span>' + kindLabel(itemKind()) + ' ID 面板</span>';
 
     panelCopyAllBtn = document.createElement('button');
     panelCopyAllBtn.type = 'button';
@@ -1229,7 +1344,7 @@
     foot.className = 'panel-foot';
     foot.textContent = '点击条目再次复制该 ID；复制过的卡片会标记「已复制」';
 
-    panel.appendChild(title);
+    panel.appendChild(panelTitle);
     panel.appendChild(panelCopyAllBtn);
     panel.appendChild(darkRow);
     panel.appendChild(panelHistHead);
@@ -1268,7 +1383,7 @@
       (function (entry) {
         var item = document.createElement('div');
         item.className = 'hist-item';
-        item.title = '点击复制 ' + entry.id;
+        item.title = '点击复制' + kindLabel(entry.k) + ' ID ' + entry.id;
         var idEl = document.createElement('span');
         idEl.className = 'hist-id';
         idEl.textContent = entry.id;
@@ -1289,8 +1404,8 @@
           ev.stopPropagation();
           copyText(entry.id).then(function (ok) {
             if (ok) {
-              recordIds([entry.id]);
-              toast('已复制商品 ID：' + entry.id);
+              recordIds([entry.id], entry.k);
+              toast('已复制' + kindLabel(entry.k) + ' ID：' + entry.id);
             } else {
               toast('复制失败', true);
             }
@@ -1308,7 +1423,10 @@
 
   function openPanel() {
     buildPanel();
+    var kind = itemKind();
     var n = uniqueIds(!!filterQuery).length;
+    var titleText = panelTitle && panelTitle.querySelector('span');
+    if (titleText) titleText.textContent = kindLabel(kind) + ' ID 面板';
     var label = panelCopyAllBtn.querySelector('span');
     if (label) label.textContent = '复制本页全部（' + n + '）';
     renderHistory();
@@ -1818,9 +1936,7 @@
   }
 
   function postCardId(card) {
-    var a = card.querySelector('a[href*="/posts/"]');
-    var m = a && /\/(?:posts)\/(\d+)(?:[/?#]|$)/.exec(a.getAttribute('href') || '');
-    return m ? m[1] : '';
+    return postIdIn(card);
   }
 
   // 商品标题只存在于 img[alt] / link-block[title] 里，textContent 拿不到
@@ -1873,7 +1989,7 @@
         var hit = !filterQuery || pid.indexOf(filterQuery) >= 0 || text.indexOf(filterQuery) >= 0;
         var postDisplay = hit ? '' : 'none';
         if (item.style.display !== postDisplay) item.style.display = postDisplay;
-        if (hit) shown++;
+        if (hit) { shown++; } else if (pid) { hiddenIds[pid] = true; }
       }
       updateFilterCount(shown);
       return;
@@ -1884,7 +2000,7 @@
       var bar = bars[i];
       var card = bar.parentNode;
       if (!card) continue;
-      var id = bar.getAttribute('data-fantia-product-id') || '';
+      var id = barId(bar);
       var text = withCardAttrs(card, (card.textContent || '').toLowerCase());
       var match = !filterQuery || id.indexOf(filterQuery) >= 0 || text.indexOf(filterQuery) >= 0;
       var target = filterHideTarget(card, false);
@@ -2032,7 +2148,8 @@
   var INF_GAP = 300;
   var inf = {
     url: null, loading: false, page: 1, observer: null, sentinel: null,
-    lastUrl: null, grid: null, timer: null, fails: 0, retryAt: 0, seen: null
+    lastUrl: null, grid: null, timer: null, fails: 0, retryAt: 0, seen: null,
+    kind: 'product'
   };
 
   function paginationNextUrl(root, base) {
@@ -2044,9 +2161,10 @@
     try { return new URL(href, base || location.href).href; } catch (e) { return null; }
   }
 
-  // 在解析出的下一页文档里找商品网格行（与 widenLayout 同一结构判定：
-  // 直接子列中 >=2 个含商品链接的 .row，取命中列数最多的一层）
-  function findGridRowIn(doc) {
+  // 在解析出的下一页文档里找条目网格行（与 widenLayout 同一结构判定：
+  // 直接子列中 >=2 个含同类卡片的 .row，取命中列数最多的一层）
+  function findGridRowIn(doc, kind) {
+    var sel = kind === 'post' ? '.module.post' : 'a[href*="/products/"]';
     var rows = doc.querySelectorAll('.row');
     var best = null;
     var bestN = 0;
@@ -2054,11 +2172,33 @@
       var cols = rows[i].querySelectorAll(':scope > [class*="col-"]');
       var n = 0;
       for (var c = 0; c < cols.length; c++) {
-        if (cols[c].querySelector('a[href*="/products/"]')) n++;
+        if (cols[c].querySelector(sel)) n++;
       }
       if (n >= 2 && n > bestN) { best = rows[i]; bestN = n; }
     }
     return best;
+  }
+
+  // 站点图片走 lazyload（data-src 由站点脚本写入），追加进来的节点不会再被
+  // 站点处理，这里直接把 data-src 落到 src，避免无限滚动后整片占位图
+  function hydrateLazyImages(root) {
+    var imgs = root.querySelectorAll ? root.querySelectorAll('img[data-src]') : [];
+    for (var i = 0; i < imgs.length; i++) {
+      var src = imgs[i].getAttribute('data-src');
+      if (src) imgs[i].setAttribute('src', src);
+    }
+  }
+
+  // 从元素里取条目 ID 集合，供下一页去重
+  function idsInElement(el, kind) {
+    if (kind !== 'post') return productIdsIn(el);
+    var found = {};
+    var cards = el.querySelectorAll ? el.querySelectorAll('.module.post') : [];
+    for (var i = 0; i < cards.length; i++) {
+      var id = postIdIn(cards[i]);
+      if (id) found[id] = true;
+    }
+    return found;
   }
 
   function cleanupInfiniteScroll() {
@@ -2074,6 +2214,7 @@
     inf.fails = 0;
     inf.retryAt = 0;
     inf.seen = null;
+    inf.kind = 'product';
   }
 
   function sentinelInRange() {
@@ -2105,11 +2246,12 @@
     if (inf.lastUrl && inf.lastUrl !== location.href) cleanupInfiniteScroll();
     var grid = document.querySelector('[data-fid-grid]');
     if (!grid) return;
-    // 投稿网格也带 data-fid-grid，但没有商品 ID；无限滚动目前只做商品卡片
-    if (!collectProductLinks().length) return;
+    var kind = itemKind();
+    var items = collectItems(kind);
+    if (!items.length) return;   // 没有可识别的条目（商品链接或投稿卡片）
 
     if (inf.observer) {
-      if (inf.grid === grid) { ensureSentinel(grid); return; }
+      if (inf.grid === grid && inf.kind === kind) { ensureSentinel(grid); return; }
       cleanupInfiniteScroll();                     // 网格被整体替换：重新绑定
       grid = document.querySelector('[data-fid-grid]');
       if (!grid) return;
@@ -2120,13 +2262,13 @@
 
     inf.lastUrl = location.href;
     inf.grid = grid;
+    inf.kind = kind;
     inf.url = next;
     inf.page = 1;
     inf.fails = 0;
     inf.retryAt = 0;
     inf.seen = {};
-    var links = collectProductLinks();
-    for (var i = 0; i < links.length; i++) inf.seen[links[i].id] = true;
+    for (var i = 0; i < items.length; i++) inf.seen[items[i].id] = true;
 
     ensureSentinel(grid);
     inf.observer = new IntersectionObserver(function (entries) {
@@ -2135,7 +2277,7 @@
       }
     }, { rootMargin: INF_PRELOAD + 'px 0px' });
     inf.observer.observe(inf.sentinel);
-    dbg('无限滚动已启用，下一页：' + next);
+    dbg('无限滚动已启用（' + kindLabel(kind) + '），下一页：' + next);
     pumpNextPage();                                // 首屏不满时立即补页
   }
 
@@ -2170,22 +2312,25 @@
       })
       .then(function (html) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
-        var row = findGridRowIn(doc);
-        if (!row) { endInfiniteScroll('下一页找不到商品网格'); return; }
+        var kind = inf.kind;
+        var row = findGridRowIn(doc, kind);
+        if (!row) { endInfiniteScroll('下一页找不到' + kindLabel(kind) + '网格'); return; }
         var cols = row.querySelectorAll(':scope > [class*="col-"]');
         var added = 0;
         for (var i = 0; i < cols.length; i++) {
-          var ids = productIdsIn(cols[i]);
+          var ids = idsInElement(cols[i], kind);
           var fresh = false;
           for (var k in ids) {
             if (!inf.seen[k]) { fresh = true; break; }
           }
           if (!fresh) continue;                    // 重复页/重复卡片不再追加
           for (var k2 in ids) inf.seen[k2] = true;
-          grid.appendChild(document.importNode(cols[i], true));
+          var node = document.importNode(cols[i], true);
+          hydrateLazyImages(node);
+          grid.appendChild(node);
           added++;
         }
-        if (!added) { endInfiniteScroll('下一页没有新商品'); return; }
+        if (!added) { endInfiniteScroll('下一页没有新' + kindLabel(kind)); return; }
         inf.page++;
         inf.fails = 0;
         inf.retryAt = 0;
